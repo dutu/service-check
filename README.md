@@ -285,6 +285,7 @@ Per-check sections may define or override:
 - `repeat_after`
 - `failure_message`
 - `success_message`
+- `notify_cmd`
 - `kuma_push_url`
 ## Message Templates
 

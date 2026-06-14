@@ -188,6 +188,10 @@ Responsibilities:
 Notification transport should stay outside the watchdog. For example, Telegram
 delivery can live in `/usr/local/bin/telegram-notify`.
 
+Each check may define `notify_cmd` to override `[global] notify_cmd`. This is
+useful when different services should alert different Telegram topics, email
+aliases, or local handlers.
+
 ### `kuma.py`
 
 Responsibilities:

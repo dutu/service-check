@@ -19,6 +19,7 @@ Optional:
 - `retry_delay`: seconds between immediate retries
 - `fail_after`: failed runs required before local notification
 - `repeat_after`: seconds before repeating an unresolved alert
+- `notify_cmd`: local notification command override for this check
 - `kuma_push_url`: optional per-check Uptime Kuma push URL
 
 ## Details
@@ -41,6 +42,7 @@ interval_minutes=1
 host=127.0.0.1
 port=50001
 timeout=2
+# notify_cmd=/usr/local/bin/telegram-notify infra
 failure_message=TCP port {host}:{port} is down: {error}
 success_message=TCP port {host}:{port} is reachable in {elapsed_ms}ms
 ```

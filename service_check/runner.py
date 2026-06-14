@@ -210,7 +210,8 @@ def process_result(
 
     notification_error = None
     if should_notify and not no_notify:
-        notification_error = send_notification(global_config.notify_cmd, format_alert(global_config, check_config, result, message), dry_run)
+        notify_cmd = check_config.get("notify_cmd", global_config.notify_cmd)
+        notification_error = send_notification(notify_cmd, format_alert(global_config, check_config, result, message), dry_run)
         if notification_error:
             LOGGER.warning("notification failed for %s: %s", check_config.section, notification_error)
 
