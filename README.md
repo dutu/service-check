@@ -61,8 +61,10 @@ service-check/
 |   +-- wireguard.ini
 |   +-- full.ini
 +-- systemd/
-|   +-- service-check.service
-|   +-- service-check.timer
+|   +-- service-check@.service
+|   +-- service-check-fast.timer
+|   +-- service-check-normal.timer
+|   +-- service-check-slow.timer
 +-- install.sh
 +-- uninstall.sh
 +-- ARCHITECTURE.md
@@ -74,19 +76,64 @@ service-check/
 The normal runtime flow is:
 
 ```text
-systemd timer
-  -> service-check
+systemd timer for one schedule group
+  -> service-check --schedule fast|normal|slow
       -> read /etc/service-check/service-check.ini
-      -> execute enabled checks
+      -> execute enabled checks assigned to that schedule
       -> retry transient failures inside the current run
       -> compute OK, WARN, CRIT, or UNKNOWN
       -> update /var/lib/service-check/state.json
       -> notify only on threshold, recovery, or repeat interval
-      -> optionally push aggregate status to Uptime Kuma
+      -> optionally push each check result to its Uptime Kuma push URL
 ```
 
 The script is not meant to run as a daemon. systemd starts it on a schedule and
 the process exits after one check cycle.
+
+## Scheduling Model
+
+Use one config file and multiple systemd timers.
+
+Each check section has a `schedule` value:
+
+```ini
+[monerod]
+enabled=1
+schedule=fast
+check=monerod_sync
+
+[wg_btrad]
+enabled=1
+schedule=normal
+check=wireguard_peer
+
+[bitcoind]
+enabled=1
+schedule=slow
+check=bitcoind_sync
+```
+
+Each timer runs the same command with a different schedule selector:
+
+```text
+service-check-fast.timer   -> service-check --schedule fast
+service-check-normal.timer -> service-check --schedule normal
+service-check-slow.timer   -> service-check --schedule slow
+```
+
+Recommended default cadence:
+
+| Schedule | Suggested Interval | Typical Checks |
+| --- | --- | --- |
+| `fast` | 1 minute | TCP ports, local RPC reachability, wallet RPC |
+| `normal` | 5 minutes | Monero sync health, WireGuard peers, HTTP JSON checks |
+| `slow` | 15 to 30 minutes | Bitcoin full sync checks, Electrs, update checks, less volatile services |
+
+This keeps scheduling in systemd instead of building an internal scheduler.
+
+The runner should use one shared state file and key state by section name. It
+should also take a process or state-file lock so two timers cannot write the
+state file at the same time.
 
 ## Configuration
 
@@ -110,32 +157,39 @@ notify_on_recovery=1
 
 [monerod]
 enabled=1
+schedule=normal
 check=monerod_sync
 url=http://127.0.0.1:18081/json_rpc
 min_outgoing_peers=4
 max_height_lag=10
 fail_after=2
+kuma_push_url=https://kuma.example.com/api/push/monerod-token
 failure_message=Monero daemon unhealthy: height={height}, target={target_height}, outgoing_peers={outgoing_peers}
 
 [monero_wallet_rpc]
 enabled=1
+schedule=fast
 check=monero_wallet_rpc
 url=http://192.168.10.51:38084/json_rpc
 rpc_user=monerorpc
 rpc_password_file=/etc/service-check/secrets/monero-wallet-rpc.pw
+kuma_push_url=https://kuma.example.com/api/push/monero-wallet-rpc-token
 failure_message=Monero wallet RPC is not responding
 
 [wg_btrad]
 enabled=1
+schedule=normal
 check=wireguard_peer
 interface=wg0
 peer_name=btrad
 max_latest_handshake_age=180
 fail_after=3
+kuma_push_url=https://kuma.example.com/api/push/wg-btrad-token
 failure_message=WireGuard peer btrad handshake is stale
 
 [electrs]
 enabled=0
+schedule=slow
 check=tcp_port
 host=127.0.0.1
 port=50001
@@ -156,15 +210,17 @@ Common global keys:
 | `default_fail_after` | Failed scheduled runs required before alerting. |
 | `default_repeat_after` | Seconds before repeating an alert for a still-broken check. |
 | `notify_on_recovery` | Whether to notify when a failed check recovers. |
-| `kuma_push_url` | Optional Uptime Kuma push monitor URL. |
+| `default_schedule` | Schedule used when a check section does not define `schedule`. |
 
-Per-check sections may override:
+Per-check sections may define or override:
 
+- `schedule`
 - `retries`
 - `retry_delay`
 - `fail_after`
 - `repeat_after`
 - `failure_message`
+- `kuma_push_url`
 
 ## Message Templates
 
@@ -176,6 +232,7 @@ Example:
 ```ini
 [monerod]
 enabled=1
+schedule=normal
 check=monerod_sync
 url=http://127.0.0.1:18081/json_rpc
 failure_message=Monero daemon unhealthy: height={height}, target={target_height}, lag={height_lag}, outgoing_peers={outgoing_peers}
@@ -256,6 +313,7 @@ Planned initial check names:
 | `tcp_port` | Verify a TCP port accepts connections. |
 | `http_json` | Verify an HTTP endpoint responds with valid JSON and optional expected fields. |
 | `bitcoind_sync` | Verify Bitcoin Core sync state and peer count. |
+| `github_release_update` | Check whether a newer `service-check` GitHub Release is available. |
 
 ## Monero Checks
 
@@ -272,10 +330,12 @@ Recommended config:
 ```ini
 [monerod]
 enabled=1
+schedule=normal
 check=monerod_sync
 url=http://127.0.0.1:18081/json_rpc
 min_outgoing_peers=4
 max_height_lag=10
+kuma_push_url=https://kuma.example.com/api/push/monerod-token
 failure_message=Monero daemon unhealthy: height={height}, target={target_height}, lag={height_lag}, outgoing_peers={outgoing_peers}
 ```
 
@@ -295,11 +355,13 @@ Example:
 ```ini
 [wg_btrad]
 enabled=1
+schedule=normal
 check=wireguard_peer
 interface=wg0
 peer_name=btrad
 max_latest_handshake_age=180
 ping_host=10.8.0.2
+kuma_push_url=https://kuma.example.com/api/push/wg-btrad-token
 failure_message=WireGuard peer btrad is stale: latest_handshake_age={latest_handshake_age}s
 ```
 
@@ -318,10 +380,12 @@ Example:
 ```ini
 [bitcoind]
 enabled=1
+schedule=slow
 check=bitcoind_sync
 bitcoin_cli=/usr/bin/bitcoin-cli
 min_peers=6
 max_block_lag=2
+kuma_push_url=https://kuma.example.com/api/push/bitcoind-token
 failure_message=Bitcoin Core unhealthy: blocks={blocks}, headers={headers}, peers={peers}
 ```
 
@@ -346,21 +410,156 @@ This keeps notification transport separate from health-check logic.
 
 ## Uptime Kuma Push
 
-Kuma integration should be optional.
+Kuma integration should be optional and per check.
 
-Recommended behavior:
-
-- all checks `OK`: push up
-- any check `CRIT`: push down with the most important failure message
-- only `WARN`: either push up with warning text or use a separate Kuma monitor
-- `UNKNOWN`: treat as down unless explicitly configured otherwise
+Create one Kuma push monitor for each watchdog section you want on the dashboard,
+then put that monitor's push URL in the same INI section.
 
 Example:
 
 ```ini
-[global]
-kuma_push_url=https://kuma.example.com/api/push/abc123
+[monerod]
+enabled=1
+schedule=normal
+check=monerod_sync
+kuma_push_url=https://kuma.example.com/api/push/monerod-token
+failure_message=Monero daemon unhealthy: height={height}, target={target_height}, lag={height_lag}
+
+[wg_btrad]
+enabled=1
+schedule=normal
+check=wireguard_peer
+kuma_push_url=https://kuma.example.com/api/push/wg-btrad-token
+failure_message=WireGuard peer btrad is stale: latest_handshake_age={latest_handshake_age}s
 ```
+
+Recommended per-check mapping:
+
+| Check Status | Kuma Push |
+| --- | --- |
+| `OK` | up |
+| `WARN` | up with warning message |
+| `CRIT` | down |
+| `UNKNOWN` | down |
+
+The Kuma message should use the rendered failure or recovery message, including
+any placeholders.
+
+If a section has no `kuma_push_url`, the runner should simply skip Kuma for that
+check.
+
+An optional aggregate Kuma monitor may be added later, but it should not replace
+per-check push URLs. Per-check monitors give a clearer dashboard and better
+history.
+
+Optional aggregate example:
+
+```ini
+[global]
+aggregate_kuma_push_url=https://kuma.example.com/api/push/all-service-checks-token
+```
+
+## Versioning And Updates
+
+`service-check` should be versioned and able to check GitHub for newer releases.
+
+Recommended versioning model:
+
+- use semantic versions such as `0.1.0`, `0.2.0`, and `1.0.0`
+- tag releases in Git as `v0.1.0`, `v0.2.0`, and `v1.0.0`
+- expose the installed version with `service-check --version`
+- store the Python package version in `service_check/__init__.py`
+- treat GitHub Releases as the update source, not arbitrary branch heads
+
+Recommended commands:
+
+```bash
+service-check --version
+service-check --check service_check_update
+sudo service-check --self-update
+```
+
+Default behavior should be conservative:
+
+- update detection should run as a normal configured check
+- the update check must not modify files
+- `--self-update` must require explicit user action
+- automatic update checks are acceptable
+- automatic update installation should be opt-in, not default
+
+Recommended update check config:
+
+```ini
+[service_check_update]
+enabled=1
+schedule=slow
+check=github_release_update
+repo=your-github-user/service-check
+check_prereleases=0
+fail_after=1
+repeat_after=86400
+kuma_push_url=https://kuma.example.com/api/push/service-check-update-token
+failure_message=service-check update available: {current_version} -> {latest_version} ({release_url})
+```
+
+For GitHub, the update checker should call the latest release endpoint:
+
+```text
+https://api.github.com/repos/OWNER/REPO/releases/latest
+```
+
+Then compare the returned `tag_name` against the local version.
+
+If `check_prereleases=0`, only stable GitHub Releases should be considered.
+Prereleases are useful later for testing, but stable machines should ignore them
+by default.
+
+The update checker should use the normal notification command if a newer version
+is available:
+
+```text
+[home-mt] service-check update available: 0.1.0 -> 0.2.0
+```
+
+The update check should return:
+
+| Situation | Suggested Status |
+| --- | --- |
+| installed version is latest | `OK` |
+| newer release exists | `WARN` |
+| GitHub cannot be reached or response cannot be parsed | `UNKNOWN` |
+
+For local notifications, this is the main exception to the usual `WARN` policy:
+the update check should support alerting on `WARN`, because `WARN` is the correct
+status for "new version available".
+
+Suggested per-check option:
+
+```ini
+notify_on_warn=1
+```
+
+With `repeat_after=86400`, the machine can remind you once per day while an
+update remains available.
+
+Installing updates is different from checking updates. Installation needs write
+access to `/opt/service-check`, `/usr/local/bin`, and possibly systemd unit
+files, so it should run under `sudo`.
+
+Recommended install strategy:
+
+- download the release tarball or zipball into a temporary directory
+- verify the release version matches the expected tag
+- stop or avoid concurrent watchdog runs with the normal lock
+- replace `/opt/service-check`
+- preserve `/etc/service-check/service-check.ini`
+- preserve `/var/lib/service-check/state.json`
+- reinstall or refresh systemd units if they changed
+- run `systemctl daemon-reload`
+- run `service-check --version`
+
+Do not update directly from the `main` branch on production machines. Releases
+make rollback and debugging much cleaner.
 
 ## Installation
 
@@ -380,7 +579,9 @@ git clone https://github.com/you/service-check.git
 cd service-check
 sudo ./install.sh
 sudo cp examples/monero.ini /etc/service-check/service-check.ini
-sudo systemctl enable --now service-check.timer
+sudo systemctl enable --now service-check-fast.timer
+sudo systemctl enable --now service-check-normal.timer
+sudo systemctl enable --now service-check-slow.timer
 ```
 
 The installer should:
@@ -396,31 +597,69 @@ The installer should:
 
 ## systemd
 
-The service should execute one run and exit:
+Use one templated service and multiple concrete timers.
+
+The service instance name is the schedule name. For example,
+`service-check@fast.service` runs only sections with `schedule=fast`.
+
+`service-check@.service`:
 
 ```ini
 [Unit]
-Description=Run service-check watchdog
+Description=Run service-check watchdog for %i schedule
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/service-check --config /etc/service-check/service-check.ini
+ExecStart=/usr/local/bin/service-check --config /etc/service-check/service-check.ini --schedule %i
 ```
 
-The timer controls frequency:
+`service-check-fast.timer`:
 
 ```ini
 [Unit]
-Description=Run service-check watchdog periodically
+Description=Run fast service-check watchdog checks
 
 [Timer]
 OnBootSec=1min
-OnUnitActiveSec=5min
-Unit=service-check.service
+OnUnitActiveSec=1min
+Unit=service-check@fast.service
 
 [Install]
 WantedBy=timers.target
 ```
+
+`service-check-normal.timer`:
+
+```ini
+[Unit]
+Description=Run normal service-check watchdog checks
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=service-check@normal.service
+
+[Install]
+WantedBy=timers.target
+```
+
+`service-check-slow.timer`:
+
+```ini
+[Unit]
+Description=Run slow service-check watchdog checks
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+Unit=service-check@slow.service
+
+[Install]
+WantedBy=timers.target
+```
+
+This gives different intervals without duplicating the watchdog code or creating
+one config file per service.
 
 ## Secrets
 

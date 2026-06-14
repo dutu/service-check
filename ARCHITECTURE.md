@@ -10,21 +10,68 @@ notify. Individual check functions know how to interrogate one service.
 ## Runtime Flow
 
 ```text
-systemd timer
-  -> service-check CLI
+systemd timer for one schedule group
+  -> service-check CLI --schedule fast|normal|slow
       -> load INI config
-      -> build enabled check list
+      -> build enabled check list for that schedule
       -> dispatch each check by registered check name
       -> retry failed checks inside the current run
       -> normalize results to OK, WARN, CRIT, or UNKNOWN
       -> load previous JSON state
       -> decide whether to notify
       -> write updated JSON state
-      -> optionally push aggregate status to Uptime Kuma
+      -> optionally push each check result to its Uptime Kuma push URL
       -> exit
 ```
 
 The process should be short-lived. Scheduling belongs to systemd.
+
+## Scheduling
+
+The runner should not implement its own scheduler.
+
+Use one shared INI config with a `schedule` key per check section:
+
+```ini
+[monerod]
+enabled=1
+schedule=normal
+check=monerod_sync
+
+[monero_wallet_rpc]
+enabled=1
+schedule=fast
+check=monero_wallet_rpc
+
+[bitcoind]
+enabled=1
+schedule=slow
+check=bitcoind_sync
+```
+
+Then use multiple systemd timers that call the same runner with different
+schedule selectors:
+
+```text
+service-check-fast.timer   -> service-check@fast.service   -> --schedule fast
+service-check-normal.timer -> service-check@normal.service -> --schedule normal
+service-check-slow.timer   -> service-check@slow.service   -> --schedule slow
+```
+
+Suggested cadence:
+
+| Schedule | Interval | Purpose |
+| --- | --- | --- |
+| `fast` | 1 minute | Lightweight reachability checks. |
+| `normal` | 5 minutes | Normal service health checks. |
+| `slow` | 15 to 30 minutes | Heavier or less volatile checks. |
+
+The config layer should default missing `schedule` values to
+`default_schedule`, or to `normal` if no default is configured.
+
+Because multiple timers can fire close together, the runner should take a lock
+around state read/write and notification decisions. The state file can remain
+shared as long as state keys are based on the section name.
 
 ## Main Components
 
@@ -44,6 +91,7 @@ service_check/
     +-- wireguard.py
     +-- tcp.py
     +-- http.py
+    +-- github.py
 ```
 
 ### `cli.py`
@@ -60,6 +108,7 @@ Suggested arguments:
 
 ```text
 --config /etc/service-check/service-check.ini
+--schedule normal
 --dry-run
 --no-notify
 --check monerod
@@ -72,7 +121,7 @@ Responsibilities:
 
 - read the INI file
 - parse `[global]`
-- find enabled check sections
+- find enabled check sections for the requested schedule
 - merge global defaults with per-check overrides
 - validate required fields for each check type where practical
 
@@ -84,12 +133,12 @@ data into typed values the runner can use.
 Responsibilities:
 
 - resolve `check=...` through the check registry
-- execute checks
+- execute checks selected by `--schedule` or `--check`
 - apply immediate retries
 - convert exceptions to `UNKNOWN`
 - aggregate results
 - call state and notification logic
-- call Kuma push logic
+- call per-check Kuma push logic
 
 The runner owns generic behavior. Check modules should not decide notification
 policy.
@@ -140,7 +189,7 @@ delivery can live in `/usr/local/bin/telegram-notify`.
 
 Responsibilities:
 
-- push aggregate status to an optional Uptime Kuma push URL
+- push each check result to its optional Uptime Kuma push URL
 - map watchdog status to Kuma status
 - include a concise status message
 
@@ -173,6 +222,7 @@ CHECKS = {
     "wireguard_peer": check_wireguard_peer,
     "tcp_port": check_tcp_port,
     "http_json": check_http_json,
+    "github_release_update": check_github_release_update,
 }
 ```
 
@@ -301,9 +351,14 @@ Suggested policy:
 
 This policy belongs in the runner/state layer, not in individual check functions.
 
+Checks may opt into `WARN` notifications with `notify_on_warn=1`. This should be
+used sparingly, for cases where `WARN` is the desired alert status, such as
+`github_release_update` reporting that a new version is available.
+
 ## Aggregation
 
-Per-check results should be aggregated for process exit code and Kuma push.
+Per-check results should be aggregated for process exit code and optional
+aggregate reporting.
 
 Suggested aggregate rules:
 
@@ -322,19 +377,122 @@ Suggested process exit codes:
 
 ## Uptime Kuma Mapping
 
-If configured, push one aggregate result after each run.
+Kuma push URLs should be configured per check section.
+
+Example:
+
+```ini
+[monerod]
+enabled=1
+check=monerod_sync
+kuma_push_url=https://kuma.example.com/api/push/monerod-token
+failure_message=Monero daemon unhealthy: height={height}, target={target_height}, lag={height_lag}
+
+[wg_btrad]
+enabled=1
+check=wireguard_peer
+kuma_push_url=https://kuma.example.com/api/push/wg-btrad-token
+failure_message=WireGuard peer btrad is stale: latest_handshake_age={latest_handshake_age}s
+```
+
+If a section has no `kuma_push_url`, Kuma push should be skipped for that check.
 
 Suggested mapping:
 
-| Aggregate Status | Kuma |
+| Check Status | Kuma |
 | --- | --- |
 | `OK` | up |
 | `WARN` | up with warning message |
 | `CRIT` | down |
 | `UNKNOWN` | down |
 
-For more detailed dashboards, use multiple Kuma push URLs in the future. The MVP
-should start with one aggregate push URL.
+The Kuma message should use the same message rendering path as local alerts, so
+placeholders from `CheckResult.details` are available.
+
+An optional aggregate Kuma monitor can be supported with
+`aggregate_kuma_push_url`, but it should be secondary. Per-check push URLs are
+the preferred model because they provide clearer dashboard rows and separate
+history per service.
+
+## Versioning And Updates
+
+The installed application should expose a local version. Update detection should
+be implemented as a normal check function that uses the same runner, state,
+message rendering, notification, scheduling, and Kuma push behavior as service
+health checks.
+
+Recommended local version source:
+
+```python
+# service_check/__init__.py
+__version__ = "0.1.0"
+```
+
+Recommended release tag format:
+
+```text
+v0.1.0
+v0.2.0
+v1.0.0
+```
+
+The update checker should compare the local version against the GitHub release
+`tag_name`, after stripping an optional leading `v`.
+
+Suggested CLI:
+
+```text
+--version
+--check service_check_update
+--self-update
+```
+
+`github_release_update` responsibilities:
+
+- read a normal check section
+- call the GitHub latest release endpoint for stable releases
+- compare local version to latest release tag
+- return `OK` when the installed version is current
+- return `WARN` when a newer release exists
+- return `UNKNOWN` when the update check cannot be completed
+- never modify installed files
+
+Recommended config:
+
+```ini
+[service_check_update]
+enabled=1
+schedule=slow
+check=github_release_update
+repo=your-github-user/service-check
+check_prereleases=0
+fail_after=1
+repeat_after=86400
+notify_on_warn=1
+kuma_push_url=https://kuma.example.com/api/push/service-check-update-token
+failure_message=service-check update available: {current_version} -> {latest_version} ({release_url})
+```
+
+The result details should include:
+
+- `current_version`
+- `latest_version`
+- `release_url`
+- `release_name`
+- `published_at`
+
+`--self-update` responsibilities:
+
+- require explicit user action
+- require root when modifying `/opt/service-check` or systemd files
+- download the selected release
+- install using the same layout as `install.sh`
+- preserve `/etc/service-check` and `/var/lib/service-check`
+- run `systemctl daemon-reload` if unit files changed
+
+Automatic installation should not be enabled by default. A watchdog that can
+self-modify as root is more operationally risky than one that only reports that
+an update is available.
 
 ## Secrets
 
