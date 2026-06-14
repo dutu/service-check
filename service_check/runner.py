@@ -210,7 +210,7 @@ def process_result(
 
     notification_error = None
     if should_notify and not no_notify:
-        notify_cmd = check_config.get("notify_cmd", global_config.notify_cmd)
+        notify_cmd = render_notify_cmd(check_config, global_config, context)
         notification_error = send_notification(notify_cmd, format_alert(global_config, check_config, result, message), dry_run)
         if notification_error:
             LOGGER.warning("notification failed for %s: %s", check_config.section, notification_error)
@@ -266,8 +266,20 @@ def build_message_context(
         "message": result.message,
         "failure_count": failure_count,
     }
+    context.update(check_config.options)
     context.update(result.details)
     return context
+
+
+def render_notify_cmd(
+    check_config: CheckConfig,
+    global_config: GlobalConfig,
+    context: dict[str, Any],
+) -> str | None:
+    notify_cmd = check_config.get("notify_cmd", global_config.notify_cmd)
+    if not notify_cmd:
+        return None
+    return render_template(notify_cmd, context)
 
 
 def format_alert(global_config: GlobalConfig, check_config: CheckConfig, result: CheckResult, message: str) -> str:

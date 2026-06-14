@@ -338,6 +338,7 @@ Recommended built-in placeholders:
 | `{message}` | Result message |
 | `{failure_count}` | Consecutive failed due runs |
 | `{details_key}` | Any key returned in `CheckResult.details`, for example `{height}` |
+| `{config_key}` | Any key from the check config, for example `{notify_topic}` |
 
 Keep this deliberately simple:
 
@@ -349,6 +350,17 @@ Keep this deliberately simple:
 Use `failure_message` for `WARN`, `CRIT`, and `UNKNOWN`. Use `success_message`
 for `OK`, recovery notifications, and Kuma `OK` pushes. If `success_message` is
 missing, the runner uses the check's normal `CheckResult.message`.
+
+`notify_cmd` also supports placeholders and is rendered before execution. This
+allows per-check destinations or command flags without shell evaluation:
+
+```ini
+[electrs]
+enabled=1
+check=tcp_port
+notify_topic=bitcoin
+notify_cmd=/usr/local/bin/telegram-notify --level {status} {notify_topic}
+```
 
 ## Status Levels
 

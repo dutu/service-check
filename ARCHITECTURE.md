@@ -192,6 +192,10 @@ Each check may define `notify_cmd` to override `[global] notify_cmd`. This is
 useful when different services should alert different Telegram topics, email
 aliases, or local handlers.
 
+`notify_cmd` should be rendered with the same placeholder context as messages
+before it is split into arguments. The command must still be executed without a
+shell.
+
 ### `kuma.py`
 
 Responsibilities:
@@ -296,6 +300,7 @@ success_message=Monero daemon healthy: height={height}
 The rendering context should include:
 
 - runner fields such as `hostname`, `section`, and `check`
+- check config keys such as `notify_topic`
 - result fields such as `name`, `status`, and `message`
 - state fields such as `failure_count`
 - all keys from `CheckResult.details`

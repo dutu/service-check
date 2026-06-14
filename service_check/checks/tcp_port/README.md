@@ -22,6 +22,9 @@ Optional:
 - `notify_cmd`: local notification command override for this check
 - `kuma_push_url`: optional per-check Uptime Kuma push URL
 
+`notify_cmd` supports placeholders from result details and config keys, for
+example `{status}`, `{section}`, or `{notify_topic}`.
+
 ## Details
 
 The check returns these `details` keys for message templates:
@@ -42,7 +45,8 @@ interval_minutes=1
 host=127.0.0.1
 port=50001
 timeout=2
-# notify_cmd=/usr/local/bin/telegram-notify infra
+# notify_topic=infra
+# notify_cmd=/usr/local/bin/telegram-notify --level {status} {notify_topic}
 failure_message=TCP port {host}:{port} is down: {error}
 success_message=TCP port {host}:{port} is reachable in {elapsed_ms}ms
 ```
