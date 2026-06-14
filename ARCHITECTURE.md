@@ -13,6 +13,7 @@ notify. Individual check functions know how to interrogate one service.
 systemd timer every minute
   -> service-check CLI
       -> load INI config
+      -> load INI drop-ins
       -> load previous JSON state
       -> select enabled checks whose interval has elapsed
       -> dispatch each check by configured check module name
@@ -108,6 +109,7 @@ Suggested arguments:
 
 ```text
 --config /etc/service-check/service-check.ini
+--config-dir /etc/service-check/service-check.ini.d
 --all
 --dry-run
 --no-notify
@@ -120,6 +122,7 @@ Suggested arguments:
 Responsibilities:
 
 - read the INI file
+- read optional `*.ini` drop-ins from `<config>.d` or `--config-dir`
 - parse `[global]`
 - find enabled check sections and merge global defaults
 - merge global defaults with per-check overrides

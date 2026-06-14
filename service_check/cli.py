@@ -12,6 +12,7 @@ from service_check.runner import run
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run local service health checks.")
     parser.add_argument("--config", default=DEFAULT_CONFIG_PATH, help="INI config path")
+    parser.add_argument("--config-dir", help="Optional INI drop-in directory. Defaults to <config>.d")
     parser.add_argument("--all", action="store_true", help="Run all enabled checks, ignoring interval_minutes")
     parser.add_argument("--check", dest="check_section", help="Run one check section regardless of interval")
     parser.add_argument("--dry-run", action="store_true", help="Do not send notifications or Kuma pushes")
@@ -30,7 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
-        loaded = load_config(args.config)
+        loaded = load_config(args.config, args.config_dir)
         return run(
             loaded,
             check_section=args.check_section,

@@ -83,6 +83,7 @@ The normal runtime flow is:
 systemd timer every minute
   -> service-check
       -> read /etc/service-check/service-check.ini
+      -> read /etc/service-check/service-check.ini.d/*.ini
       -> execute enabled checks whose interval has elapsed
       -> retry transient failures inside the current run
       -> compute OK, WARN, CRIT, or UNKNOWN
@@ -102,6 +103,12 @@ Run due checks directly from the repo:
 
 ```bash
 python -m service_check.cli --config examples/tcp.ini --dry-run
+```
+
+Run with a main config and drop-in directory:
+
+```bash
+python -m service_check.cli --config examples/service-check.ini --all --dry-run
 ```
 
 Run all enabled checks, ignoring `interval_minutes`:
@@ -171,6 +178,31 @@ Configuration uses INI sections.
 
 `[global]` defines defaults and common behavior. Each service section enables one
 check module and provides only the inputs that module needs.
+
+The runner reads the main config first, then optional drop-in files:
+
+```text
+/etc/service-check/service-check.ini
+/etc/service-check/service-check.ini.d/*.ini
+```
+
+Drop-ins load in lexical order. Later files override earlier values for the same
+section and key. Missing `.d` directories are ignored. Only `*.ini` files are
+loaded.
+
+Recommended split:
+
+```text
+/etc/service-check/service-check.ini
+/etc/service-check/service-check.ini.d/
++-- 10-monero.ini
++-- 20-wireguard.ini
++-- 30-electrs.ini
++-- 90-update-check.ini
+```
+
+Keep `[global]` primarily in the main file. Put individual check sections in
+drop-in files.
 
 Example:
 
@@ -604,6 +636,7 @@ Planned installation targets:
 /opt/service-check
 /usr/local/bin/service-check
 /etc/service-check/service-check.ini
+/etc/service-check/service-check.ini.d/
 /var/lib/service-check/state.json
 ```
 
@@ -613,7 +646,9 @@ Planned install flow:
 git clone https://github.com/you/service-check.git
 cd service-check
 sudo ./install.sh
-sudo cp examples/tcp.ini /etc/service-check/service-check.ini
+sudo cp examples/service-check.ini /etc/service-check/service-check.ini
+sudo mkdir -p /etc/service-check/service-check.ini.d
+sudo cp examples/service-check.ini.d/10-tcp.ini /etc/service-check/service-check.ini.d/10-tcp.ini
 sudo systemctl enable --now service-check.timer
 ```
 
@@ -623,6 +658,7 @@ The installer should:
 - copy the application there
 - create `/usr/local/bin/service-check`
 - create `/etc/service-check`
+- create `/etc/service-check/service-check.ini.d`
 - copy an example config only if no config exists
 - create `/var/lib/service-check`
 - install systemd service and timer units

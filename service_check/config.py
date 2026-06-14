@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+import logging
 import os
 import socket
 from pathlib import Path
@@ -9,13 +10,16 @@ from service_check.models import CheckConfig, GlobalConfig, LoadedConfig
 
 
 DEFAULT_CONFIG_PATH = "/etc/service-check/service-check.ini"
+LOGGER = logging.getLogger(__name__)
 
 
-def load_config(path: str) -> LoadedConfig:
+def load_config(path: str, config_dir: str | None = None) -> LoadedConfig:
     parser = configparser.ConfigParser(interpolation=None)
-    read_files = parser.read(path)
+    config_files = discover_config_files(path, config_dir)
+    read_files = parser.read(config_files)
     if not read_files:
         raise FileNotFoundError(f"config file not found: {path}")
+    LOGGER.debug("loaded config files: %s", ", ".join(read_files))
 
     global_section = parser["global"] if parser.has_section("global") else {}
     hostname = _get(global_section, "hostname", socket.gethostname())
@@ -49,6 +53,17 @@ def load_config(path: str) -> LoadedConfig:
         checks.append(CheckConfig(section=section, check=check_name, options=values))
 
     return LoadedConfig(global_config=global_config, checks=checks)
+
+
+def discover_config_files(path: str, config_dir: str | None = None) -> list[str]:
+    main_path = Path(path)
+    files = [str(main_path)]
+
+    dropin_dir = Path(config_dir) if config_dir else Path(f"{path}.d")
+    if dropin_dir.is_dir():
+        files.extend(str(child) for child in sorted(dropin_dir.glob("*.ini")) if child.is_file())
+
+    return files
 
 
 def ensure_parent_dir(path: str) -> None:
