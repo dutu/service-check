@@ -50,21 +50,25 @@ service-check/
 |   +-- kuma.py
 |   +-- checks/
 |       +-- __init__.py
-|       +-- monero.py
-|       +-- bitcoin.py
-|       +-- wireguard.py
-|       +-- tcp.py
-|       +-- http.py
+|       +-- tcp_port/
+|       |   +-- __init__.py
+|       |   +-- check.py
+|       |   +-- README.md
+|       |   +-- example.ini
+|       +-- github_release_update/
+|           +-- __init__.py
+|           +-- check.py
+|           +-- README.md
+|           +-- example.ini
 +-- examples/
+|   +-- tcp.ini
 |   +-- monero.ini
 |   +-- bitcoin.ini
 |   +-- wireguard.ini
 |   +-- full.ini
 +-- systemd/
-|   +-- service-check@.service
-|   +-- service-check-fast.timer
-|   +-- service-check-normal.timer
-|   +-- service-check-slow.timer
+|   +-- service-check.service
+|   +-- service-check.timer
 +-- install.sh
 +-- uninstall.sh
 +-- ARCHITECTURE.md
@@ -76,10 +80,10 @@ service-check/
 The normal runtime flow is:
 
 ```text
-systemd timer for one schedule group
-  -> service-check --schedule fast|normal|slow
+systemd timer every minute
+  -> service-check
       -> read /etc/service-check/service-check.ini
-      -> execute enabled checks assigned to that schedule
+      -> execute enabled checks whose interval has elapsed
       -> retry transient failures inside the current run
       -> compute OK, WARN, CRIT, or UNKNOWN
       -> update /var/lib/service-check/state.json
@@ -87,60 +91,86 @@ systemd timer for one schedule group
       -> optionally push each check result to its Uptime Kuma push URL
 ```
 
-The script is not meant to run as a daemon. systemd starts it on a schedule and
+The script is not meant to run as a daemon. systemd starts it every minute and
 the process exits after one check cycle.
+
+## Current Implementation
+
+The initial implementation supports the core runner and the `tcp_port` check.
+
+Run due checks directly from the repo:
+
+```bash
+python -m service_check.cli --config examples/tcp.ini --dry-run
+```
+
+Run all enabled checks, ignoring `interval_minutes`:
+
+```bash
+python -m service_check.cli --config examples/tcp.ini --all --dry-run
+```
+
+Or run one enabled section, ignoring `interval_minutes`:
+
+```bash
+python -m service_check.cli --config examples/tcp.ini --check example_tcp_open --dry-run
+```
+
+The example config uses local state paths under `./.service-check/` so it can be
+tested without root. Edit `host` and `port` in `examples/tcp.ini` for a real
+service on your machine.
 
 ## Scheduling Model
 
-Use one config file and multiple systemd timers.
+Use one config file and one systemd timer.
 
-Each check section has a `schedule` value:
+The systemd timer runs once per minute. Each check section defines its own
+`interval_minutes` value:
 
 ```ini
 [monerod]
 enabled=1
-schedule=fast
 check=monerod_sync
+interval_minutes=5
 
 [wg_btrad]
 enabled=1
-schedule=normal
 check=wireguard_peer
+interval_minutes=5
 
 [bitcoind]
 enabled=1
-schedule=slow
 check=bitcoind_sync
+interval_minutes=30
 ```
 
-Each timer runs the same command with a different schedule selector:
+The runner decides whether each check is due from state:
 
 ```text
-service-check-fast.timer   -> service-check --schedule fast
-service-check-normal.timer -> service-check --schedule normal
-service-check-slow.timer   -> service-check --schedule slow
+now - last_run_at >= interval_minutes
 ```
 
-Recommended default cadence:
+Recommended intervals:
 
-| Schedule | Suggested Interval | Typical Checks |
-| --- | --- | --- |
-| `fast` | 1 minute | TCP ports, local RPC reachability, wallet RPC |
-| `normal` | 5 minutes | Monero sync health, WireGuard peers, HTTP JSON checks |
-| `slow` | 15 to 30 minutes | Bitcoin full sync checks, Electrs, update checks, less volatile services |
+| Interval | Typical Checks |
+| --- | --- |
+| `1` | TCP ports, local RPC reachability, wallet RPC |
+| `5` | Monero sync health, WireGuard peers, HTTP JSON checks |
+| `30` | Bitcoin full sync checks, Electrs, update checks, less volatile services |
 
-This keeps scheduling in systemd instead of building an internal scheduler.
+This keeps scheduling in systemd while avoiding artificial `fast`, `normal`, and
+`slow` buckets.
 
-The runner should use one shared state file and key state by section name. It
-should also take a process or state-file lock so two timers cannot write the
-state file at the same time.
+The runner uses one shared state file keyed by section name. It stores
+`last_run_at` for each section and takes a process or state-file lock while
+running checks and writing state.
 
 ## Configuration
 
 Configuration uses INI sections.
 
 `[global]` defines defaults and common behavior. Each service section enables one
-hardcoded check function and provides only the inputs that function needs.
+check module and provides only the inputs that module needs.
 
 Example:
 
@@ -149,6 +179,7 @@ Example:
 hostname=home-mt
 state_file=/var/lib/service-check/state.json
 notify_cmd=/usr/local/bin/telegram-notify infra
+default_interval_minutes=5
 default_retries=2
 default_retry_delay=5
 default_fail_after=3
@@ -157,8 +188,8 @@ notify_on_recovery=1
 
 [monerod]
 enabled=1
-schedule=normal
 check=monerod_sync
+interval_minutes=5
 url=http://127.0.0.1:18081/json_rpc
 min_outgoing_peers=4
 max_height_lag=10
@@ -168,8 +199,8 @@ failure_message=Monero daemon unhealthy: height={height}, target={target_height}
 
 [monero_wallet_rpc]
 enabled=1
-schedule=fast
 check=monero_wallet_rpc
+interval_minutes=1
 url=http://192.168.10.51:38084/json_rpc
 rpc_user=monerorpc
 rpc_password_file=/etc/service-check/secrets/monero-wallet-rpc.pw
@@ -178,8 +209,8 @@ failure_message=Monero wallet RPC is not responding
 
 [wg_btrad]
 enabled=1
-schedule=normal
 check=wireguard_peer
+interval_minutes=5
 interface=wg0
 peer_name=btrad
 max_latest_handshake_age=180
@@ -189,8 +220,8 @@ failure_message=WireGuard peer btrad handshake is stale
 
 [electrs]
 enabled=0
-schedule=slow
 check=tcp_port
+interval_minutes=1
 host=127.0.0.1
 port=50001
 failure_message=Electrs TCP port is down
@@ -204,38 +235,40 @@ Common global keys:
 | --- | --- |
 | `hostname` | Name included in notifications and Kuma messages. |
 | `state_file` | JSON state path used for fail counters and recovery detection. |
+| `lock_file` | Optional lock path. Defaults to `state_file` plus `.lock`. |
 | `notify_cmd` | Local command used to send alerts. |
+| `default_interval_minutes` | Interval used when a check section does not define `interval_minutes`. |
 | `default_retries` | Immediate retries inside one watchdog run. |
 | `default_retry_delay` | Delay in seconds between immediate retries. |
-| `default_fail_after` | Failed scheduled runs required before alerting. |
+| `default_fail_after` | Failed due runs required before alerting. |
 | `default_repeat_after` | Seconds before repeating an alert for a still-broken check. |
 | `notify_on_recovery` | Whether to notify when a failed check recovers. |
-| `default_schedule` | Schedule used when a check section does not define `schedule`. |
 
 Per-check sections may define or override:
 
-- `schedule`
+- `interval_minutes`
 - `retries`
 - `retry_delay`
 - `fail_after`
 - `repeat_after`
 - `failure_message`
+- `success_message`
 - `kuma_push_url`
-
 ## Message Templates
 
-`failure_message` may include simple placeholders that are replaced from the
-check result before an alert is sent.
+`failure_message` and `success_message` may include simple placeholders that are
+replaced from the check result before an alert or Kuma push is sent.
 
 Example:
 
 ```ini
 [monerod]
 enabled=1
-schedule=normal
 check=monerod_sync
+interval_minutes=5
 url=http://127.0.0.1:18081/json_rpc
 failure_message=Monero daemon unhealthy: height={height}, target={target_height}, lag={height_lag}, outgoing_peers={outgoing_peers}
+success_message=Monero daemon healthy: height={height}, outgoing_peers={outgoing_peers}
 ```
 
 If the check returns:
@@ -270,7 +303,7 @@ Recommended built-in placeholders:
 | `{name}` | Result name |
 | `{status}` | Result status |
 | `{message}` | Result message |
-| `{failure_count}` | Consecutive failed scheduled runs |
+| `{failure_count}` | Consecutive failed due runs |
 | `{details_key}` | Any key returned in `CheckResult.details`, for example `{height}` |
 
 Keep this deliberately simple:
@@ -279,6 +312,10 @@ Keep this deliberately simple:
 - do not support expressions, conditionals, loops, or shell expansion
 - leave unknown placeholders unchanged or replace them with a clear marker
 - never let a bad template prevent state updates or other checks from running
+
+Use `failure_message` for `WARN`, `CRIT`, and `UNKNOWN`. Use `success_message`
+for `OK`, recovery notifications, and Kuma `OK` pushes. If `success_message` is
+missing, the runner uses the check's normal `CheckResult.message`.
 
 ## Status Levels
 
@@ -330,8 +367,8 @@ Recommended config:
 ```ini
 [monerod]
 enabled=1
-schedule=normal
 check=monerod_sync
+interval_minutes=5
 url=http://127.0.0.1:18081/json_rpc
 min_outgoing_peers=4
 max_height_lag=10
@@ -355,8 +392,8 @@ Example:
 ```ini
 [wg_btrad]
 enabled=1
-schedule=normal
 check=wireguard_peer
+interval_minutes=5
 interface=wg0
 peer_name=btrad
 max_latest_handshake_age=180
@@ -380,8 +417,8 @@ Example:
 ```ini
 [bitcoind]
 enabled=1
-schedule=slow
 check=bitcoind_sync
+interval_minutes=30
 bitcoin_cli=/usr/bin/bitcoin-cli
 min_peers=6
 max_block_lag=2
@@ -420,14 +457,12 @@ Example:
 ```ini
 [monerod]
 enabled=1
-schedule=normal
 check=monerod_sync
 kuma_push_url=https://kuma.example.com/api/push/monerod-token
 failure_message=Monero daemon unhealthy: height={height}, target={target_height}, lag={height_lag}
 
 [wg_btrad]
 enabled=1
-schedule=normal
 check=wireguard_peer
 kuma_push_url=https://kuma.example.com/api/push/wg-btrad-token
 failure_message=WireGuard peer btrad is stale: latest_handshake_age={latest_handshake_age}s
@@ -492,8 +527,8 @@ Recommended update check config:
 ```ini
 [service_check_update]
 enabled=1
-schedule=slow
 check=github_release_update
+interval_minutes=1440
 repo=your-github-user/service-check
 check_prereleases=0
 fail_after=1
@@ -578,10 +613,8 @@ Planned install flow:
 git clone https://github.com/you/service-check.git
 cd service-check
 sudo ./install.sh
-sudo cp examples/monero.ini /etc/service-check/service-check.ini
-sudo systemctl enable --now service-check-fast.timer
-sudo systemctl enable --now service-check-normal.timer
-sudo systemctl enable --now service-check-slow.timer
+sudo cp examples/tcp.ini /etc/service-check/service-check.ini
+sudo systemctl enable --now service-check.timer
 ```
 
 The installer should:
@@ -597,69 +630,36 @@ The installer should:
 
 ## systemd
 
-Use one templated service and multiple concrete timers.
+Use one service and one timer. The timer runs once per minute; the runner decides
+which checks are due from each section's `interval_minutes` and `last_run_at`.
 
-The service instance name is the schedule name. For example,
-`service-check@fast.service` runs only sections with `schedule=fast`.
-
-`service-check@.service`:
+`service-check.service`:
 
 ```ini
 [Unit]
-Description=Run service-check watchdog for %i schedule
+Description=Run service-check watchdog
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/service-check --config /etc/service-check/service-check.ini --schedule %i
+ExecStart=/usr/local/bin/service-check --config /etc/service-check/service-check.ini
 ```
 
-`service-check-fast.timer`:
+`service-check.timer`:
 
 ```ini
 [Unit]
-Description=Run fast service-check watchdog checks
+Description=Run service-check watchdog every minute
 
 [Timer]
 OnBootSec=1min
 OnUnitActiveSec=1min
-Unit=service-check@fast.service
+Unit=service-check.service
 
 [Install]
 WantedBy=timers.target
 ```
 
-`service-check-normal.timer`:
-
-```ini
-[Unit]
-Description=Run normal service-check watchdog checks
-
-[Timer]
-OnBootSec=2min
-OnUnitActiveSec=5min
-Unit=service-check@normal.service
-
-[Install]
-WantedBy=timers.target
-```
-
-`service-check-slow.timer`:
-
-```ini
-[Unit]
-Description=Run slow service-check watchdog checks
-
-[Timer]
-OnBootSec=5min
-OnUnitActiveSec=30min
-Unit=service-check@slow.service
-
-[Install]
-WantedBy=timers.target
-```
-
-This gives different intervals without duplicating the watchdog code or creating
-one config file per service.
+This gives per-check intervals without duplicating config files or systemd units.
 
 ## Secrets
 
@@ -689,3 +689,7 @@ Keep the extension model simple:
 - Let the runner handle retries, state, notifications, and Kuma push.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the internal design.
+
+
+
+

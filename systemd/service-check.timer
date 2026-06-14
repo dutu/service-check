@@ -1,0 +1,11 @@
+[Unit]
+Description=Run service-check watchdog every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Unit=service-check.service
+
+[Install]
+WantedBy=timers.target
+

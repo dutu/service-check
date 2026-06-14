@@ -1,0 +1,7 @@
+[Unit]
+Description=Run service-check watchdog
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/service-check --config /etc/service-check/service-check.ini
+

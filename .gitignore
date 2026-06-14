@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.service-check/
+.service-check-test.ini
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+

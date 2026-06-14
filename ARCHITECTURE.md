@@ -10,68 +10,64 @@ notify. Individual check functions know how to interrogate one service.
 ## Runtime Flow
 
 ```text
-systemd timer for one schedule group
-  -> service-check CLI --schedule fast|normal|slow
+systemd timer every minute
+  -> service-check CLI
       -> load INI config
-      -> build enabled check list for that schedule
-      -> dispatch each check by registered check name
+      -> load previous JSON state
+      -> select enabled checks whose interval has elapsed
+      -> dispatch each check by configured check module name
       -> retry failed checks inside the current run
       -> normalize results to OK, WARN, CRIT, or UNKNOWN
-      -> load previous JSON state
       -> decide whether to notify
       -> write updated JSON state
       -> optionally push each check result to its Uptime Kuma push URL
       -> exit
 ```
 
-The process should be short-lived. Scheduling belongs to systemd.
+The process should be short-lived. systemd provides the one-minute tick; the
+runner decides which checks are due.
 
 ## Scheduling
 
-The runner should not implement its own scheduler.
+The runner should not implement a resident scheduler.
 
-Use one shared INI config with a `schedule` key per check section:
+Use one shared INI config with `interval_minutes` per check section:
 
 ```ini
 [monerod]
 enabled=1
-schedule=normal
 check=monerod_sync
+interval_minutes=5
 
 [monero_wallet_rpc]
 enabled=1
-schedule=fast
 check=monero_wallet_rpc
+interval_minutes=1
 
 [bitcoind]
 enabled=1
-schedule=slow
 check=bitcoind_sync
+interval_minutes=30
 ```
 
-Then use multiple systemd timers that call the same runner with different
-schedule selectors:
+The single systemd timer runs every minute:
 
 ```text
-service-check-fast.timer   -> service-check@fast.service   -> --schedule fast
-service-check-normal.timer -> service-check@normal.service -> --schedule normal
-service-check-slow.timer   -> service-check@slow.service   -> --schedule slow
+service-check.timer -> service-check.service -> service-check
 ```
 
-Suggested cadence:
+A check is due when:
 
-| Schedule | Interval | Purpose |
-| --- | --- | --- |
-| `fast` | 1 minute | Lightweight reachability checks. |
-| `normal` | 5 minutes | Normal service health checks. |
-| `slow` | 15 to 30 minutes | Heavier or less volatile checks. |
+```text
+now - last_run_at >= interval_minutes
+```
 
-The config layer should default missing `schedule` values to
-`default_schedule`, or to `normal` if no default is configured.
+The config layer should default missing `interval_minutes` values to
+`default_interval_minutes`, or to `5` if no default is configured.
 
-Because multiple timers can fire close together, the runner should take a lock
-around state read/write and notification decisions. The state file can remain
-shared as long as state keys are based on the section name.
+The runner should take a lock around selection, execution, state updates, and
+notification decisions. The state file can remain shared as long as state keys
+are based on the section name.
 
 ## Main Components
 
@@ -86,14 +82,18 @@ service_check/
 +-- notify.py
 +-- kuma.py
 +-- checks/
-    +-- monero.py
-    +-- bitcoin.py
-    +-- wireguard.py
-    +-- tcp.py
-    +-- http.py
-    +-- github.py
+    +-- __init__.py
+    +-- tcp_port/
+    |   +-- __init__.py
+    |   +-- check.py
+    |   +-- README.md
+    |   +-- example.ini
+    +-- github_release_update/
+        +-- __init__.py
+        +-- check.py
+        +-- README.md
+        +-- example.ini
 ```
-
 ### `cli.py`
 
 Responsibilities:
@@ -108,7 +108,7 @@ Suggested arguments:
 
 ```text
 --config /etc/service-check/service-check.ini
---schedule normal
+--all
 --dry-run
 --no-notify
 --check monerod
@@ -121,7 +121,7 @@ Responsibilities:
 
 - read the INI file
 - parse `[global]`
-- find enabled check sections for the requested schedule
+- find enabled check sections and merge global defaults
 - merge global defaults with per-check overrides
 - validate required fields for each check type where practical
 
@@ -133,7 +133,7 @@ data into typed values the runner can use.
 Responsibilities:
 
 - resolve `check=...` through the check registry
-- execute checks selected by `--schedule` or `--check`
+- execute checks selected by interval due state, `--all`, or `--check`
 - apply immediate retries
 - convert exceptions to `UNKNOWN`
 - aggregate results
@@ -210,38 +210,37 @@ for example `wg` or `bitcoin-cli`.
 
 ## Check Registry
 
-Use a simple registry that maps config names to Python functions.
+The check name in config maps to a module directory:
 
-Example:
-
-```python
-CHECKS = {
-    "monerod_sync": check_monerod_sync,
-    "monero_wallet_rpc": check_monero_wallet_rpc,
-    "bitcoind_sync": check_bitcoind_sync,
-    "wireguard_peer": check_wireguard_peer,
-    "tcp_port": check_tcp_port,
-    "http_json": check_http_json,
-    "github_release_update": check_github_release_update,
-}
+```text
+check=tcp_port -> service_check.checks.tcp_port.check:run
 ```
 
-The INI references the stable check name:
+Each check module exposes the same callable:
+
+```python
+def run(config: CheckConfig) -> CheckResult:
+    ...
+```
+
+The INI references the stable module name:
 
 ```ini
-[monerod]
+[electrs_tcp]
 enabled=1
-check=monerod_sync
-url=http://127.0.0.1:18081/json_rpc
+check=tcp_port
+interval_minutes=1
+host=127.0.0.1
+port=50001
 ```
 
 Adding a new check should require:
 
-- adding or editing one check module
-- registering the function
-- adding example config
-- adding README documentation
-
+- adding a new `service_check/checks/<check_name>/` directory
+- adding `check.py` with `run(config)`
+- adding a module `README.md`
+- adding a module `example.ini`
+- documenting returned `details` keys for message placeholders
 ## Result Contract
 
 Every check returns the same result shape.
@@ -284,6 +283,7 @@ Example:
 
 ```ini
 failure_message=Monero daemon unhealthy: height={height}, target={target_height}, lag={height_lag}
+success_message=Monero daemon healthy: height={height}
 ```
 
 The rendering context should include:
@@ -300,9 +300,11 @@ Template rendering should be intentionally limited:
 - do not invoke a shell while rendering
 - handle missing placeholders without crashing the watchdog run
 
-The configured `failure_message` should be treated as an alert presentation
-template. The original `CheckResult.message` should still be stored in details or
-state when useful for debugging.
+The configured `failure_message` should be treated as a problem-state
+presentation template. The configured `success_message` should be used for `OK`
+status, recovery notifications, and Kuma `OK` pushes. The original
+`CheckResult.message` should still be stored in details or state when useful for
+debugging.
 
 ## Retry and Alert Thresholds
 
@@ -322,7 +324,7 @@ Run starts
   result for this run is CRIT
 ```
 
-`fail_after` means the number of failed scheduled runs required before sending a
+`fail_after` means the number of failed due runs required before sending a
 new failure alert.
 
 Example with `fail_after=3`:
@@ -462,7 +464,7 @@ Recommended config:
 ```ini
 [service_check_update]
 enabled=1
-schedule=slow
+interval_minutes=1440
 check=github_release_update
 repo=your-github-user/service-check
 check_prereleases=0
@@ -545,3 +547,6 @@ The important boundary is:
 INI config decides what to check and with which thresholds.
 Python code decides how the service is interrogated and interpreted.
 ```
+
+
+
