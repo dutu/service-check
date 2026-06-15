@@ -3,5 +3,4 @@ Description=Run service-check watchdog
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/service-check --config /etc/service-check/service-check.ini
-
+ExecStart=/opt/service-check-venv/bin/service-check --config /etc/service-check/service-check.ini

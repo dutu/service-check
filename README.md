@@ -391,7 +391,7 @@ the current implemented checks table.
 Deployment targets:
 
 ```text
-/usr/local/bin/service-check
+/opt/service-check-venv/bin/service-check
 /etc/service-check/service-check.ini
 /etc/service-check/service-check.ini.d/
 /var/lib/service-check/state.json
@@ -400,9 +400,12 @@ Deployment targets:
 Manual install flow:
 
 ```bash
+sudo apt update
+sudo apt install -y git python3 python3-venv
 sudo git clone https://github.com/dutu/service-check.git /opt/service-check-src
 cd /opt/service-check-src
-sudo python -m pip install .
+sudo python3 -m venv /opt/service-check-venv
+sudo /opt/service-check-venv/bin/python -m pip install .
 sudo mkdir -p /etc/service-check/service-check.ini.d /var/lib/service-check
 sudo cp -n examples/service-check.ini /etc/service-check/service-check.ini
 sudo cp -n examples/service-check.ini.d/10-tcp.ini /etc/service-check/service-check.ini.d/10-tcp.ini
@@ -413,21 +416,27 @@ sudo systemctl enable --now service-check.timer
 ```
 
 The current package install provides the `service-check` command from
-`pyproject.toml`. Production deployment also needs `/etc/service-check`,
-`/var/lib/service-check`, and the systemd unit files.
+`pyproject.toml` inside `/opt/service-check-venv`. Production deployment also
+needs `/etc/service-check`, `/var/lib/service-check`, and the systemd unit
+files.
 
 Use `/opt/service-check-src` as the stable source checkout. Keep local runtime
 configuration in `/etc/service-check`, not in the repository checkout. The
 example config copy commands use `cp -n` so an existing config file is not
 overwritten during first install or later manual reruns.
 
+Minimal server images often have `python3` without `pip`. Do not use
+`sudo python -m pip ...` unless your distribution provides a `python` command.
+Using a virtual environment avoids requiring system `pip` and avoids modifying
+distribution-managed Python packages.
+
 Update flow:
 
 ```bash
 cd /opt/service-check-src
 sudo git pull --ff-only
-sudo python -m pip install --upgrade .
-service-check --version
+sudo /opt/service-check-venv/bin/python -m pip install --upgrade .
+/opt/service-check-venv/bin/service-check --version
 sudo systemctl restart service-check.timer
 ```
 
