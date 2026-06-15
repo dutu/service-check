@@ -7,7 +7,7 @@ from typing import Any
 
 from service_check.checks import get_check
 from service_check.kuma import push_kuma
-from service_check.models import CRIT, OK, UNKNOWN, CheckConfig, CheckResult, GlobalConfig, LoadedConfig
+from service_check.models import CRIT, OK, UNKNOWN, WARN, CheckConfig, CheckResult, GlobalConfig, LoadedConfig
 from service_check.notify import send_notification
 from service_check.state import StateStore
 from service_check.templates import render_template
@@ -191,7 +191,7 @@ def process_result(
     else:
         consecutive = 0
 
-    context = build_message_context(global_config, check_config, result, consecutive)
+    context = build_message_context(global_config, check_config, result, consecutive, was_problem)
     message = render_result_message(check_config, result, context)
 
     should_notify = False
@@ -263,6 +263,7 @@ def build_message_context(
     check_config: CheckConfig,
     result: CheckResult,
     failure_count: int,
+    was_problem: bool = False,
 ) -> dict[str, Any]:
     context: dict[str, Any] = {
         "hostname": global_config.hostname,
@@ -271,6 +272,7 @@ def build_message_context(
         "interval_minutes": check_config.get_float("interval_minutes", global_config.default_interval_minutes),
         "name": result.name,
         "status": result.status,
+        "notify_level": get_notify_level(result.status, is_recovery=result.status == OK and was_problem),
         "message": result.message,
         "failure_count": failure_count,
     }
@@ -288,6 +290,17 @@ def render_notify_cmd(
     if not notify_cmd:
         return None
     return render_template(notify_cmd, context)
+
+
+def get_notify_level(status: str, is_recovery: bool = False) -> str:
+    if is_recovery:
+        return "notice"
+    return {
+        OK: "info",
+        WARN: "warning",
+        CRIT: "crit",
+        UNKNOWN: "err",
+    }.get(status, "notice")
 
 
 def _utc_now() -> str:

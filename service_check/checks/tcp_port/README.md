@@ -23,7 +23,7 @@ Optional:
 - `kuma_push_url`: optional per-check Uptime Kuma push URL
 
 `notify_cmd` supports placeholders from result details and config keys, for
-example `{status}`, `{section}`, or `{notify_topic}`.
+example `{notify_level}`, `{section}`, or `{notify_topic}`.
 
 ## Details
 
@@ -46,7 +46,7 @@ host=127.0.0.1
 port=50001
 timeout=2
 # notify_topic=infra
-# notify_cmd=/usr/local/bin/telegram-notify --level {status} {notify_topic}
+# notify_cmd=/usr/local/bin/telegram-notify --level {notify_level} {notify_topic}
 failure_message=TCP port {host}:{port} is down: {error}
 success_message=TCP port {host}:{port} is reachable in {elapsed_ms}ms
 ```

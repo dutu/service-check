@@ -278,6 +278,7 @@ Built-in placeholders:
 | `{check}` | Check function name, for example `tcp_port` |
 | `{name}` | Result name |
 | `{status}` | Result status |
+| `{notify_level}` | Syslog-compatible notification level derived from status |
 | `{message}` | Result message |
 | `{failure_count}` | Consecutive failed due runs |
 | `{details_key}` | Any key returned in `CheckResult.details`, for example `{elapsed_ms}` |
@@ -290,8 +291,20 @@ Template rendering is deliberately simple:
 - unknown placeholders stay visible in the rendered message
 - a bad template does not prevent state updates or other checks from running
 
-`notify_cmd` also supports placeholders and is rendered before execution. The
-command is executed without shell evaluation.
+`notify_cmd` also supports placeholders and is rendered before execution. Use
+`{status}` for the service-check monitoring status and `{notify_level}` for
+syslog-compatible notification severity. The command is executed without shell
+evaluation.
+
+Default notification level mapping:
+
+| Status | Recovery? | `{notify_level}` |
+| --- | --- | --- |
+| `OK` | no | `info` |
+| `OK` | yes | `notice` |
+| `WARN` | no | `warning` |
+| `CRIT` | no | `crit` |
+| `UNKNOWN` | no | `err` |
 
 ## Status Levels
 
@@ -339,14 +352,14 @@ Example:
 
 ```ini
 [global]
-notify_cmd=/usr/local/bin/telegram-notify infra
+notify_cmd=/usr/local/bin/telegram-notify --level {notify_level} infra
 ```
 
 The runner appends one argument containing the rendered `failure_message` or
 `success_message`:
 
 ```text
-/usr/local/bin/telegram-notify infra "Electrs TCP port 127.0.0.1:50001 is down"
+/usr/local/bin/telegram-notify --level crit infra "Electrs TCP port 127.0.0.1:50001 is down"
 ```
 
 This keeps notification transport separate from health-check logic.
