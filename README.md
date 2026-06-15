@@ -379,7 +379,7 @@ service-check --version
 The Python package version is stored in `service_check/__init__.py` and
 `pyproject.toml`.
 
-Release notes are kept in [CHANGELOG.md](CHANGELOG.md) when a stable release is
+Release notes are published through GitHub Releases when a stable release is
 prepared and the package version is bumped.
 
 Update checking and self-update behavior are design targets documented in
