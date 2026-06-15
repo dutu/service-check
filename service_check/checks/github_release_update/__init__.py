@@ -1,0 +1,1 @@
+"""GitHub release update check."""

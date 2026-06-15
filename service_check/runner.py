@@ -207,12 +207,16 @@ def process_result(
     elif was_problem and global_config.notify_on_recovery:
         should_notify = True
         message = f"Recovered: {message}"
+    elif result.status == OK and check_config.get_bool("notify_on_success_once", False):
+        should_notify = not previous.get("last_success_notification_at")
 
     notification_error = None
-    if should_notify and not no_notify:
-        notify_cmd = render_notify_cmd(check_config, global_config, context)
+    notify_cmd = render_notify_cmd(check_config, global_config, context) if should_notify and not no_notify else None
+    notification_was_sent = bool(notify_cmd)
+    if notify_cmd:
         notification_error = send_notification(notify_cmd, format_alert(global_config, check_config, result, message), dry_run)
         if notification_error:
+            notification_was_sent = False
             LOGGER.warning("notification failed for %s: %s", check_config.section, notification_error)
 
     kuma_error = push_kuma(
@@ -233,7 +237,12 @@ def process_result(
         "last_seen_at": now,
         "last_message": result.message,
         "last_rendered_message": message,
-        "last_notification_at": now if should_notify and not notification_error else previous.get("last_notification_at"),
+        "last_notification_at": now if notification_was_sent else previous.get("last_notification_at"),
+        "last_success_notification_at": (
+            now
+            if result.status == OK and notification_was_sent
+            else previous.get("last_success_notification_at")
+        ),
         "details": result.details,
     }
 
