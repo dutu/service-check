@@ -206,7 +206,6 @@ def process_result(
         )
     elif was_problem and global_config.notify_on_recovery:
         should_notify = True
-        message = f"Recovered: {message}"
     elif result.status == OK and check_config.get_bool("notify_on_success_once", False):
         should_notify = not previous.get("last_success_notification_at")
 
@@ -214,7 +213,7 @@ def process_result(
     notify_cmd = render_notify_cmd(check_config, global_config, context) if should_notify and not no_notify else None
     notification_was_sent = bool(notify_cmd)
     if notify_cmd:
-        notification_error = send_notification(notify_cmd, format_alert(global_config, check_config, result, message), dry_run)
+        notification_error = send_notification(notify_cmd, message, dry_run)
         if notification_error:
             notification_was_sent = False
             LOGGER.warning("notification failed for %s: %s", check_config.section, notification_error)
@@ -289,10 +288,6 @@ def render_notify_cmd(
     if not notify_cmd:
         return None
     return render_template(notify_cmd, context)
-
-
-def format_alert(global_config: GlobalConfig, check_config: CheckConfig, result: CheckResult, message: str) -> str:
-    return f"[{global_config.hostname}] {check_config.section} {result.status}: {message}"
 
 
 def _utc_now() -> str:

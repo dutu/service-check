@@ -342,10 +342,11 @@ Example:
 notify_cmd=/usr/local/bin/telegram-notify infra
 ```
 
-The runner calls it with a single composed message:
+The runner appends one argument containing the rendered `failure_message` or
+`success_message`:
 
 ```text
-/usr/local/bin/telegram-notify infra "[home-mt] electrs_tcp CRIT: Electrs TCP port 127.0.0.1:50001 is down"
+/usr/local/bin/telegram-notify infra "Electrs TCP port 127.0.0.1:50001 is down"
 ```
 
 This keeps notification transport separate from health-check logic.
