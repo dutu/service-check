@@ -379,6 +379,9 @@ service-check --version
 The Python package version is stored in `service_check/__init__.py` and
 `pyproject.toml`.
 
+Release notes are kept in [CHANGELOG.md](CHANGELOG.md) when a stable release is
+prepared and the package version is bumped.
+
 Update checking and self-update behavior are design targets documented in
 [ARCHITECTURE.md](ARCHITECTURE.md#versioning-and-updates). They are not part of
 the current implemented checks table.
@@ -397,12 +400,12 @@ Deployment targets:
 Manual install flow:
 
 ```bash
-git clone https://github.com/you/service-check.git
-cd service-check
+sudo git clone https://github.com/dutu/service-check.git /opt/service-check-src
+cd /opt/service-check-src
 sudo python -m pip install .
 sudo mkdir -p /etc/service-check/service-check.ini.d /var/lib/service-check
-sudo cp examples/service-check.ini /etc/service-check/service-check.ini
-sudo cp examples/service-check.ini.d/10-tcp.ini /etc/service-check/service-check.ini.d/10-tcp.ini
+sudo cp -n examples/service-check.ini /etc/service-check/service-check.ini
+sudo cp -n examples/service-check.ini.d/10-tcp.ini /etc/service-check/service-check.ini.d/10-tcp.ini
 sudo cp systemd/service-check.service /etc/systemd/system/service-check.service
 sudo cp systemd/service-check.timer /etc/systemd/system/service-check.timer
 sudo systemctl daemon-reload
@@ -412,6 +415,32 @@ sudo systemctl enable --now service-check.timer
 The current package install provides the `service-check` command from
 `pyproject.toml`. Production deployment also needs `/etc/service-check`,
 `/var/lib/service-check`, and the systemd unit files.
+
+Use `/opt/service-check-src` as the stable source checkout. Keep local runtime
+configuration in `/etc/service-check`, not in the repository checkout. The
+example config copy commands use `cp -n` so an existing config file is not
+overwritten during first install or later manual reruns.
+
+Update flow:
+
+```bash
+cd /opt/service-check-src
+sudo git pull --ff-only
+sudo python -m pip install --upgrade .
+service-check --version
+sudo systemctl restart service-check.timer
+```
+
+The update flow does not copy files into `/etc/service-check`, so existing
+configuration and secrets are left untouched. Only review and copy example
+config or systemd unit changes manually when the release notes or diff indicate
+that you need them:
+
+```bash
+cd /opt/service-check-src
+git diff HEAD@{1} -- examples/ systemd/
+sudo cp -n examples/service-check.ini.d/10-tcp.ini /etc/service-check/service-check.ini.d/10-tcp.ini
+```
 
 ## systemd
 
