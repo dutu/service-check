@@ -83,12 +83,48 @@ install_runtime_files() {
   install -d "${CONFIG_DIR}" "${DROPIN_DIR}" "${STATE_DIR}"
 
   log "Installing default config without overwriting existing files"
-  cp -n "${SRC_DIR}/examples/service-check.ini" "${CONFIG_DIR}/service-check.ini"
+  if [[ ! -f "${CONFIG_DIR}/service-check.ini" ]]; then
+    install -m 0644 "${SRC_DIR}/examples/service-check.production.ini" "${CONFIG_DIR}/service-check.ini"
+  else
+    repair_known_bad_config_defaults "${CONFIG_DIR}/service-check.ini"
+  fi
   cp -n "${SRC_DIR}/examples/service-check.ini.d/10-version.ini" "${DROPIN_DIR}/10-version.ini"
+  disable_known_old_tcp_dropin
 
   log "Installing systemd units"
   install -m 0644 "${SRC_DIR}/systemd/service-check.service" "${SYSTEMD_DIR}/service-check.service"
   install -m 0644 "${SRC_DIR}/systemd/service-check.timer" "${SYSTEMD_DIR}/service-check.timer"
+}
+
+disable_known_old_tcp_dropin() {
+  local old_dropin="${DROPIN_DIR}/10-tcp.ini"
+  local disabled_dropin="${DROPIN_DIR}/10-tcp.ini.disabled"
+
+  if [[ ! -f "${old_dropin}" ]]; then
+    return
+  fi
+
+  if grep -q '^\[example_tcp_open\]$' "${old_dropin}" \
+    && grep -q '^check=tcp_port$' "${old_dropin}" \
+    && grep -q '^host=127\.0\.0\.1$' "${old_dropin}" \
+    && grep -q '^port=80$' "${old_dropin}"; then
+    log "Disabling obsolete default TCP example ${old_dropin}"
+    mv -n "${old_dropin}" "${disabled_dropin}"
+  fi
+}
+
+repair_known_bad_config_defaults() {
+  local config_file="$1"
+
+  if grep -q '^state_file=\./\.service-check/state\.json$' "${config_file}"; then
+    log "Repairing relative state_file in ${config_file}"
+    sed -i 's#^state_file=\./\.service-check/state\.json$#state_file=/var/lib/service-check/state.json#' "${config_file}"
+  fi
+
+  if grep -q '^lock_file=\./\.service-check/state\.lock$' "${config_file}"; then
+    log "Repairing relative lock_file in ${config_file}"
+    sed -i 's#^lock_file=\./\.service-check/state\.lock$#lock_file=/var/lib/service-check/state.lock#' "${config_file}"
+  fi
 }
 
 enable_systemd_timer() {
@@ -105,6 +141,16 @@ verify_installation() {
 
   log "Verifying configuration with a dry run"
   "${VENV_DIR}/bin/service-check" --config "${CONFIG_DIR}/service-check.ini" --all --dry-run
+
+  log "Running checks once without local notifications"
+  set +e
+  "${VENV_DIR}/bin/service-check" --config "${CONFIG_DIR}/service-check.ini" --all --no-notify
+  local check_status=$?
+  set -e
+  if [[ "${check_status}" -ne 0 ]]; then
+    log "Initial check run exited ${check_status}; inspect configured checks and journal output"
+  fi
+  test -f "${STATE_DIR}/state.json"
 
   log "Checking timer status"
   systemctl is-enabled service-check.timer >/dev/null

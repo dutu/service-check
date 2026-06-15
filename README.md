@@ -430,7 +430,9 @@ The installer performs the normal deployment flow:
 - creates or updates `/opt/service-check-venv`
 - installs the package into the virtual environment
 - creates `/etc/service-check`, `/etc/service-check/service-check.ini.d`, and `/var/lib/service-check`
-- copies example config with non-overwrite behavior
+- copies production config with non-overwrite behavior
+- repairs the old local-dev relative state paths if found in `/etc/service-check/service-check.ini`
+- disables the obsolete default `example_tcp_open` drop-in if it still exists unchanged
 - installs the systemd service and timer
 - enables `service-check.timer`
 - runs version, dry-run, and timer status checks
@@ -448,7 +450,7 @@ cd /opt/service-check-src
 sudo python3 -m venv /opt/service-check-venv
 sudo /opt/service-check-venv/bin/python -m pip install .
 sudo mkdir -p /etc/service-check/service-check.ini.d /var/lib/service-check
-sudo cp -n examples/service-check.ini /etc/service-check/service-check.ini
+sudo cp -n examples/service-check.production.ini /etc/service-check/service-check.ini
 sudo cp -n examples/service-check.ini.d/10-version.ini /etc/service-check/service-check.ini.d/10-version.ini
 sudo cp systemd/service-check.service /etc/systemd/system/service-check.service
 sudo cp systemd/service-check.timer /etc/systemd/system/service-check.timer
@@ -461,6 +463,8 @@ Post-install check:
 ```bash
 /opt/service-check-venv/bin/service-check --version
 sudo /opt/service-check-venv/bin/service-check --config /etc/service-check/service-check.ini --all --dry-run
+sudo /opt/service-check-venv/bin/service-check --config /etc/service-check/service-check.ini --all --no-notify
+sudo test -f /var/lib/service-check/state.json
 systemctl is-enabled service-check.timer
 systemctl is-active service-check.timer
 systemctl status --no-pager service-check.timer service-check.service
@@ -470,10 +474,12 @@ sudo journalctl -u service-check.service -n 20 --no-pager
 
 The version command confirms the installed entry point. The dry run validates
 configuration and executes all enabled checks without sending notifications,
-without pushing to Kuma, and without writing state. The systemd commands confirm
-that the timer is enabled, active, and scheduled. The service is `oneshot`, so
-it is normally inactive between timer runs; use `journalctl` to inspect recent
-run output after the timer has fired.
+without pushing to Kuma, and without writing state. The `--all --no-notify` run
+executes due checks and writes `/var/lib/service-check/state.json` without local
+notifications. The systemd commands confirm that the timer is enabled, active,
+and scheduled. The service is `oneshot`, so it is normally inactive between
+timer runs; use `journalctl` to inspect recent run output after the timer has
+fired.
 
 The current package install provides the `service-check` command from
 `pyproject.toml` inside `/opt/service-check-venv`. Production deployment also
