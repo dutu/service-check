@@ -458,7 +458,7 @@ new example config manually when upgrading an existing installation.
 
 Manual fallback flow:
 
-```bash
+```bash 
 sudo apt update
 sudo apt install -y git python3 python3-venv rsync
 sudo git clone https://github.com/dutu/service-check.git /opt/service-check-src
