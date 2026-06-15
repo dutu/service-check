@@ -118,7 +118,7 @@ Useful CLI options:
 | `--config-dir PATH` | Optional drop-in directory. Defaults to `<config>.d`. |
 | `--all` | Run all enabled checks regardless of interval. |
 | `--check SECTION` | Run one enabled section regardless of interval. |
-| `--list-scheduled` | List enabled checks, due status, last run, next due time, and last status. |
+| `--list-scheduled` | List enabled checks, local last run time, next due time, and last status. |
 | `--dry-run` | Skip notifications and Kuma pushes. |
 | `--no-notify` | Skip local notification command execution. |
 | `--verbose` | Enable debug logging. |

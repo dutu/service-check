@@ -12,7 +12,7 @@ from service_check.models import CheckConfig, GlobalConfig, LoadedConfig
 from service_check.runner import is_due, run
 from service_check.state import StateStore
 
-SCHEDULE_COLUMNS = ["SECTION", "CHECK", "INTERVAL_MIN", "DUE", "LAST_RUN_AT", "NEXT_DUE_AT", "LAST_STATUS"]
+SCHEDULE_COLUMNS = ["SECTION", "CHECK", "INTERVAL_MIN", "LAST_RUN_AT", "NEXT_DUE_AT", "LAST_STATUS"]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -21,7 +21,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config-dir", help="Optional INI drop-in directory. Defaults to <config>.d")
     parser.add_argument("--all", action="store_true", help="Run all enabled checks, ignoring interval_minutes")
     parser.add_argument("--check", dest="check_section", help="Run one check section regardless of interval")
-    parser.add_argument("--list-scheduled", action="store_true", help="List enabled checks and their due status")
+    parser.add_argument("--list-scheduled", action="store_true", help="List enabled checks and their schedule state")
     parser.add_argument("--dry-run", action="store_true", help="Do not send notifications or Kuma pushes")
     parser.add_argument("--no-notify", action="store_true", help="Do not send local notifications")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
@@ -83,15 +83,14 @@ def format_scheduled_check(
 ) -> str:
     interval_minutes = check_config.get_float("interval_minutes", global_config.default_interval_minutes)
     last_run_at = str(previous.get("last_run_at") or "-")
-    due = "yes" if is_due(check_config, previous, global_config, now) else "no"
-    next_due_at = "due now" if due == "yes" else compute_next_due_at(last_run_at, interval_minutes)
+    is_check_due = is_due(check_config, previous, global_config, now)
+    next_due_at = "due now" if is_check_due else compute_next_due_at(last_run_at, interval_minutes)
     last_status = str(previous.get("last_status") or "-")
     return [
         check_config.section,
         check_config.check,
         _format_number(interval_minutes),
-        due,
-        last_run_at,
+        format_local_time(last_run_at),
         next_due_at,
         last_status,
     ]
@@ -118,7 +117,17 @@ def compute_next_due_at(last_run_at: str, interval_minutes: float) -> str:
         previous_run = datetime.fromisoformat(last_run_at.replace("Z", "+00:00"))
     except ValueError:
         return "-"
-    return (previous_run + timedelta(minutes=interval_minutes)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return format_local_time((previous_run + timedelta(minutes=interval_minutes)).isoformat())
+
+
+def format_local_time(value: str) -> str:
+    if value == "-":
+        return "-"
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return value
+    return parsed.astimezone().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _format_number(value: float) -> str:
