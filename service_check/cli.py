@@ -12,6 +12,8 @@ from service_check.models import CheckConfig, GlobalConfig, LoadedConfig
 from service_check.runner import is_due, run
 from service_check.state import StateStore
 
+SCHEDULE_COLUMNS = ["SECTION", "CHECK", "INTERVAL_MIN", "DUE", "LAST_RUN_AT", "NEXT_DUE_AT", "LAST_STATUS"]
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run local service health checks.")
@@ -64,11 +66,12 @@ def list_scheduled_checks(loaded: LoadedConfig, check_section: str | None = None
             logging.info("no enabled checks")
             return 0
 
-    print("SECTION\tCHECK\tINTERVAL_MIN\tDUE\tLAST_RUN_AT\tNEXT_RUN_AT\tLAST_STATUS")
     now = datetime.now(timezone.utc)
+    rows = []
     for check_config in checks:
         previous = checks_state.get(check_config.section, {})
-        print(format_scheduled_check(loaded.global_config, check_config, previous, now))
+        rows.append(format_scheduled_check(loaded.global_config, check_config, previous, now))
+    print(format_table(SCHEDULE_COLUMNS, rows))
     return 0
 
 
@@ -80,23 +83,35 @@ def format_scheduled_check(
 ) -> str:
     interval_minutes = check_config.get_float("interval_minutes", global_config.default_interval_minutes)
     last_run_at = str(previous.get("last_run_at") or "-")
-    next_run_at = compute_next_run_at(last_run_at, interval_minutes)
     due = "yes" if is_due(check_config, previous, global_config, now) else "no"
+    next_due_at = "due now" if due == "yes" else compute_next_due_at(last_run_at, interval_minutes)
     last_status = str(previous.get("last_status") or "-")
-    return "\t".join(
-        [
-            check_config.section,
-            check_config.check,
-            _format_number(interval_minutes),
-            due,
-            last_run_at,
-            next_run_at,
-            last_status,
-        ]
-    )
+    return [
+        check_config.section,
+        check_config.check,
+        _format_number(interval_minutes),
+        due,
+        last_run_at,
+        next_due_at,
+        last_status,
+    ]
 
 
-def compute_next_run_at(last_run_at: str, interval_minutes: float) -> str:
+def format_table(columns: list[str], rows: list[list[str]]) -> str:
+    widths = [
+        max(len(row[index]) for row in [columns, *rows])
+        for index in range(len(columns))
+    ]
+    lines = [_format_table_row(columns, widths)]
+    lines.extend(_format_table_row(row, widths) for row in rows)
+    return "\n".join(lines)
+
+
+def _format_table_row(row: list[str], widths: list[int]) -> str:
+    return "  ".join(value.ljust(widths[index]) for index, value in enumerate(row)).rstrip()
+
+
+def compute_next_due_at(last_run_at: str, interval_minutes: float) -> str:
     if last_run_at == "-" or interval_minutes <= 0:
         return "-"
     try:
