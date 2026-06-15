@@ -9,8 +9,6 @@ when something meaningfully changes.
 
 Typical targets:
 
-- Monero daemon and wallet RPC
-- Bitcoin Core
 - WireGuard peers
 - Electrs or Fulcrum
 - TCP ports
@@ -62,8 +60,6 @@ service-check/
 |           +-- example.ini
 +-- examples/
 |   +-- tcp.ini
-|   +-- monero.ini
-|   +-- bitcoin.ini
 |   +-- wireguard.ini
 |   +-- full.ini
 +-- systemd/
