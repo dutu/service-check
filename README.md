@@ -23,6 +23,29 @@ The intended monitoring split is:
 - notification helper: alert delivery, for example Telegram
 - Uptime Kuma: optional dashboard and external alerting
 
+## Table Of Contents
+
+- [Design Goals](#design-goals)
+- [Repository Layout](#repository-layout)
+- [How It Works](#how-it-works)
+- [Current Implementation](#current-implementation)
+- [Scheduling Model](#scheduling-model)
+- [Configuration](#configuration)
+- [Global Settings](#global-settings)
+- [Message Templates](#message-templates)
+- [Status Levels](#status-levels)
+- [Checks](#checks)
+- [Monero Checks](#monero-checks)
+- [WireGuard Checks](#wireguard-checks)
+- [Bitcoin Checks](#bitcoin-checks)
+- [Notification Command](#notification-command)
+- [Uptime Kuma Push](#uptime-kuma-push)
+- [Versioning And Updates](#versioning-and-updates)
+- [Installation](#installation)
+- [systemd](#systemd)
+- [Secrets](#secrets)
+- [Development Notes](#development-notes)
+
 ## Design Goals
 
 - Keep service logic explicit in Python check functions.
@@ -283,6 +306,7 @@ Per-check sections may define or override:
 - `success_message`
 - `notify_cmd`
 - `kuma_push_url`
+
 ## Message Templates
 
 `failure_message` and `success_message` may include simple placeholders that are
@@ -734,7 +758,6 @@ Keep the extension model simple:
 - Let the runner handle retries, state, notifications, and Kuma push.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the internal design.
-
 
 
 

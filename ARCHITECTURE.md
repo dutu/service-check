@@ -7,6 +7,30 @@ The core idea is to keep the runner generic while keeping health logic explicit.
 The runner knows how to load config, execute checks, retry, persist state, and
 notify. Individual check functions know how to interrogate one service.
 
+## Table Of Contents
+
+- [Runtime Flow](#runtime-flow)
+- [Scheduling](#scheduling)
+- [Main Components](#main-components)
+  - [`cli.py`](#clipy)
+  - [`config.py`](#configpy)
+  - [`runner.py`](#runnerpy)
+  - [`state.py`](#statepy)
+  - [`notify.py`](#notifypy)
+  - [`kuma.py`](#kumapy)
+  - [`checks/*`](#checks)
+- [Check Registry](#check-registry)
+- [Result Contract](#result-contract)
+- [Message Rendering](#message-rendering)
+- [Retry and Alert Thresholds](#retry-and-alert-thresholds)
+- [Notification Policy](#notification-policy)
+- [Aggregation](#aggregation)
+- [Uptime Kuma Mapping](#uptime-kuma-mapping)
+- [Versioning And Updates](#versioning-and-updates)
+- [Secrets](#secrets)
+- [Error Handling](#error-handling)
+- [Extension Rules](#extension-rules)
+
 ## Runtime Flow
 
 ```text
@@ -95,6 +119,7 @@ service_check/
         +-- README.md
         +-- example.ini
 ```
+
 ### `cli.py`
 
 Responsibilities:
@@ -252,6 +277,7 @@ Adding a new check should require:
 - adding a module `README.md`
 - adding a module `example.ini`
 - documenting returned `details` keys for message placeholders
+
 ## Result Contract
 
 Every check returns the same result shape.
