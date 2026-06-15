@@ -408,13 +408,9 @@ The Python package version is stored in `service_check/__init__.py` and
 Release notes are published through GitHub Releases when a stable release is
 prepared and the package version is bumped.
 
-The `github_release_update` check is implemented as the default version smoke
-check. It returns the installed version and can compare it with
-`expected_version` when an available release version is configured.
-
-Remote update checking and self-update behavior are design targets documented in
-[ARCHITECTURE.md](ARCHITECTURE.md#versioning-and-updates). They are not part of
-the current implemented checks table.
+The `github_release_update` check calls the GitHub latest-release endpoint and
+compares the installed version with the latest release tag. `expected_version`
+can still be configured as a manual override for offline tests.
 
 ## Installation
 
