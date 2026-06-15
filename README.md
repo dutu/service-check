@@ -68,14 +68,16 @@ The current package includes:
 - JSON state tracking
 - local notification command execution
 - optional per-check Uptime Kuma push
-- one implemented check: [`tcp_port`](service_check/checks/tcp_port/README.md)
+- implemented checks:
+  - [`github_release_update`](service_check/checks/github_release_update/README.md)
+  - [`tcp_port`](service_check/checks/tcp_port/README.md)
 
 ## Usage
 
 Run due checks directly from the repo:
 
 ```bash
-python -m service_check.cli --config examples/tcp.ini --dry-run
+python -m service_check.cli --config examples/service-check.ini --dry-run
 ```
 
 Run with a main config and drop-in directory:
@@ -87,13 +89,13 @@ python -m service_check.cli --config examples/service-check.ini --dry-run
 Run all enabled checks, ignoring `interval_minutes`:
 
 ```bash
-python -m service_check.cli --config examples/tcp.ini --all --dry-run
+python -m service_check.cli --config examples/service-check.ini --all --dry-run
 ```
 
 Run one enabled section, ignoring `interval_minutes`:
 
 ```bash
-python -m service_check.cli --config examples/tcp.ini --check example_tcp_open --dry-run
+python -m service_check.cli --config examples/service-check.ini --check github_release_update --dry-run
 ```
 
 Show the installed version:
@@ -115,9 +117,10 @@ Useful CLI options:
 | `--verbose` | Enable debug logging. |
 | `--version` | Print version and exit. |
 
-The example config uses local state paths under `./.service-check/` so it can be
-tested without root. Edit `host` and `port` in `examples/tcp.ini` for a real
-service on your machine.
+The default example config uses local state paths under `./.service-check/` and
+an enabled `github_release_update` check, so it can be tested without root and
+without relying on any local TCP service. Use `examples/tcp.ini` only when you
+specifically want to test the TCP check against a real service on your machine.
 
 ## Scheduling Model
 
@@ -181,7 +184,7 @@ Common split:
 ```text
 /etc/service-check/service-check.ini
 /etc/service-check/service-check.ini.d/
-+-- 10-tcp.ini
++-- 10-version.ini
 +-- 20-wallet-rpc.ini
 +-- 30-electrs.ini
 ```
@@ -246,6 +249,7 @@ Per-check sections may define or override:
 - `notify_cmd`
 - `kuma_push_url`
 - `notify_on_warn`
+- `notify_on_success_once`
 
 ## Message Templates
 
@@ -303,6 +307,7 @@ Alert behavior:
 | `CRIT -> OK` | Notify recovery if enabled. |
 | `CRIT -> CRIT` | Do not repeat unless `repeat_after` elapsed. |
 | `OK -> WARN` | No local alert unless `notify_on_warn=1`. |
+| first `OK` | Notify once only if `notify_on_success_once=1`. |
 
 ## Checks
 
@@ -310,6 +315,7 @@ Implemented checks:
 
 | Check | Documentation | Purpose |
 | --- | --- | --- |
+| `github_release_update` | [`service_check/checks/github_release_update/README.md`](service_check/checks/github_release_update/README.md) | Verify whether a newer `service-check` release is available. |
 | `tcp_port` | [`service_check/checks/tcp_port/README.md`](service_check/checks/tcp_port/README.md) | Verify a TCP port accepts connections. |
 
 Each check directory owns its own README and example config. Check docs cover
@@ -382,7 +388,11 @@ The Python package version is stored in `service_check/__init__.py` and
 Release notes are published through GitHub Releases when a stable release is
 prepared and the package version is bumped.
 
-Update checking and self-update behavior are design targets documented in
+The `github_release_update` check is implemented as the default version smoke
+check. It returns the installed version and can compare it with
+`expected_version` when an available release version is configured.
+
+Remote update checking and self-update behavior are design targets documented in
 [ARCHITECTURE.md](ARCHITECTURE.md#versioning-and-updates). They are not part of
 the current implemented checks table.
 
@@ -399,18 +409,41 @@ Deployment targets:
 /var/lib/service-check/state.json
 ```
 
-Manual install flow:
+Installer flow:
+
+```bash
+git clone https://github.com/dutu/service-check.git
+cd service-check
+sudo bash install.sh
+```
+
+The installer performs the normal deployment flow:
+
+- installs OS prerequisites on apt, dnf, or yum based systems
+- syncs the current checkout to `/opt/service-check-src`
+- creates or updates `/opt/service-check-venv`
+- installs the package into the virtual environment
+- creates `/etc/service-check`, `/etc/service-check/service-check.ini.d`, and `/var/lib/service-check`
+- copies example config with non-overwrite behavior
+- installs the systemd service and timer
+- enables `service-check.timer`
+- runs version, dry-run, and timer status checks
+
+Existing files under `/etc/service-check` are not overwritten. Review and merge
+new example config manually when upgrading an existing installation.
+
+Manual fallback flow:
 
 ```bash
 sudo apt update
-sudo apt install -y git python3 python3-venv
+sudo apt install -y git python3 python3-venv rsync
 sudo git clone https://github.com/dutu/service-check.git /opt/service-check-src
 cd /opt/service-check-src
 sudo python3 -m venv /opt/service-check-venv
 sudo /opt/service-check-venv/bin/python -m pip install .
 sudo mkdir -p /etc/service-check/service-check.ini.d /var/lib/service-check
 sudo cp -n examples/service-check.ini /etc/service-check/service-check.ini
-sudo cp -n examples/service-check.ini.d/10-tcp.ini /etc/service-check/service-check.ini.d/10-tcp.ini
+sudo cp -n examples/service-check.ini.d/10-version.ini /etc/service-check/service-check.ini.d/10-version.ini
 sudo cp systemd/service-check.service /etc/systemd/system/service-check.service
 sudo cp systemd/service-check.timer /etc/systemd/system/service-check.timer
 sudo systemctl daemon-reload
@@ -441,10 +474,11 @@ The current package install provides the `service-check` command from
 needs `/etc/service-check`, `/var/lib/service-check`, and the systemd unit
 files.
 
-Use `/opt/service-check-src` as the stable source checkout. Keep local runtime
-configuration in `/etc/service-check`, not in the repository checkout. The
-example config copy commands use `cp -n` so an existing config file is not
-overwritten during first install or later manual reruns.
+Use `/opt/service-check-src` as the stable source checkout. The installer syncs
+the checkout you run it from into that path. Keep local runtime configuration in
+`/etc/service-check`, not in the repository checkout. The installer and manual
+example config copy commands use non-overwrite behavior, so existing config is
+not overwritten during first install or later reruns.
 
 Minimal server images often have `python3` without `pip`. Do not use
 `sudo python -m pip ...` unless your distribution provides a `python` command.
@@ -456,20 +490,20 @@ Update flow:
 ```bash
 cd /opt/service-check-src
 sudo git pull --ff-only
-sudo /opt/service-check-venv/bin/python -m pip install --upgrade .
+sudo bash install.sh
 /opt/service-check-venv/bin/service-check --version
-sudo systemctl restart service-check.timer
 ```
 
-The update flow does not copy files into `/etc/service-check`, so existing
-configuration and secrets are left untouched. Only review and copy example
-config or systemd unit changes manually when the release notes or diff indicate
-that you need them:
+The update flow does not overwrite files in `/etc/service-check`, so existing
+configuration and secrets are left untouched. It does update the virtual
+environment and systemd units from the current checkout. Only review and copy
+example config changes manually when the release notes or diff indicate that you
+need them:
 
 ```bash
 cd /opt/service-check-src
 git diff HEAD@{1} -- examples/ systemd/
-sudo cp -n examples/service-check.ini.d/10-tcp.ini /etc/service-check/service-check.ini.d/10-tcp.ini
+sudo cp -n examples/service-check.ini.d/10-version.ini /etc/service-check/service-check.ini.d/10-version.ini
 ```
 
 ## systemd

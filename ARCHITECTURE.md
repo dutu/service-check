@@ -494,7 +494,7 @@ Update CLI:
 
 ```text
 --version
---check service_check_update
+--check github_release_update
 --self-update
 ```
 
@@ -511,7 +511,7 @@ Update CLI:
 Example config:
 
 ```ini
-[service_check_update]
+[github_release_update]
 enabled=1
 interval_minutes=1440
 check=github_release_update
@@ -520,8 +520,10 @@ check_prereleases=0
 fail_after=1
 repeat_after=86400
 notify_on_warn=1
+notify_on_success_once=1
 kuma_push_url=https://kuma.example.com/api/push/service-check-update-token
-failure_message=service-check update available: {current_version} -> {latest_version} ({release_url})
+success_message=service-check {current_version} is up-to-date
+failure_message=service-check new version available: current={current_version}, available={expected_version}
 ```
 
 The result details include:
