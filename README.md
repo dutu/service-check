@@ -412,15 +412,15 @@ Deployment targets:
 Installer flow:
 
 ```bash
-git clone https://github.com/dutu/service-check.git
-cd service-check
+sudo git clone https://github.com/dutu/service-check.git /opt/service-check-src
+cd /opt/service-check-src
 sudo bash install.sh
 ```
 
 The installer performs the normal deployment flow:
 
 - installs OS prerequisites on apt, dnf, or yum based systems
-- syncs the current checkout to `/opt/service-check-src`
+- uses `/opt/service-check-src` as the stable source checkout
 - creates or updates `/opt/service-check-venv`
 - installs the package into the virtual environment
 - creates `/etc/service-check`, `/etc/service-check/service-check.ini.d`, and `/var/lib/service-check`
