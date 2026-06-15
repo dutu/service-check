@@ -119,8 +119,7 @@ Useful CLI options:
 
 The default example config uses local state paths under `./.service-check/` and
 an enabled `github_release_update` check, so it can be tested without root and
-without relying on any local TCP service. Use `examples/tcp.ini` only when you
-specifically want to test the TCP check against a real service on your machine.
+without relying on any local TCP service.
 
 ## Scheduling Model
 
