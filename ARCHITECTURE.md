@@ -10,6 +10,7 @@ notify. Individual check functions know how to interrogate one service.
 ## Table Of Contents
 
 - [Runtime Flow](#runtime-flow)
+- [Design Goals](#design-goals)
 - [Scheduling](#scheduling)
 - [Main Components](#main-components)
   - [`cli.py`](#clipy)
@@ -29,6 +30,7 @@ notify. Individual check functions know how to interrogate one service.
 - [Versioning And Updates](#versioning-and-updates)
 - [Secrets](#secrets)
 - [Error Handling](#error-handling)
+- [Future Check Designs](#future-check-designs)
 - [Extension Rules](#extension-rules)
 
 ## Runtime Flow
@@ -49,12 +51,21 @@ systemd timer every minute
       -> exit
 ```
 
-The process should be short-lived. systemd provides the one-minute tick; the
-runner decides which checks are due.
+The process is short-lived. systemd provides the one-minute tick; the runner
+decides which checks are due.
+
+## Design Goals
+
+- Keep service logic explicit in Python check functions.
+- Keep machine-specific values in INI files.
+- Avoid a no-code monitoring framework.
+- Avoid alert spam during short restarts.
+- Run cleanly from systemd without a resident daemon process.
+- Support multiple machines with different enabled checks.
 
 ## Scheduling
 
-The runner should not implement a resident scheduler.
+The runner does not implement a resident scheduler.
 
 Use one shared INI config with `interval_minutes` per check section:
 
@@ -87,25 +98,33 @@ A check is due when:
 now - last_run_at >= interval_minutes
 ```
 
-The config layer should default missing `interval_minutes` values to
-`default_interval_minutes`, or to `5` if no default is configured.
+The config layer defaults missing `interval_minutes` values to
+`default_interval_minutes`, or to `5` when no default is configured.
 
-The runner should take a lock around selection, execution, state updates, and
-notification decisions. The state file can remain shared as long as state keys
-are based on the section name.
+The runner takes a lock around selection, execution, state updates, and
+notification decisions. The state file remains shared because state keys are
+based on the section name.
+
+The lock covers the full check cycle, including retry delays. Concurrent normal
+runs serialize on the lock; the waiting process reloads state after acquiring
+the lock and skips checks that the previous process just completed. Dry runs
+load state without locking and do not save state.
 
 ## Main Components
 
-Planned package layout:
+Package layout:
 
 ```text
 service_check/
++-- __init__.py
 +-- cli.py
 +-- config.py
++-- models.py
 +-- runner.py
 +-- state.py
 +-- notify.py
 +-- kuma.py
++-- templates.py
 +-- checks/
     +-- __init__.py
     +-- tcp_port/
@@ -113,11 +132,6 @@ service_check/
     |   +-- check.py
     |   +-- README.md
     |   +-- example.ini
-    +-- github_release_update/
-        +-- __init__.py
-        +-- check.py
-        +-- README.md
-        +-- example.ini
 ```
 
 ### `cli.py`
@@ -130,7 +144,7 @@ Responsibilities:
 - call the runner
 - return process exit code
 
-Suggested arguments:
+CLI arguments:
 
 ```text
 --config /etc/service-check/service-check.ini
@@ -153,8 +167,8 @@ Responsibilities:
 - merge global defaults with per-check overrides
 - validate required fields for each check type where practical
 
-The config layer should not implement health logic. It should only transform INI
-data into typed values the runner can use.
+The config layer does not implement health logic. It transforms INI data into
+typed values the runner can use.
 
 ### `runner.py`
 
@@ -168,7 +182,7 @@ Responsibilities:
 - call state and notification logic
 - call per-check Kuma push logic
 
-The runner owns generic behavior. Check modules should not decide notification
+The runner owns generic behavior. Check modules do not decide notification
 policy.
 
 ### `state.py`
@@ -182,8 +196,8 @@ Responsibilities:
 - track last notification time
 - support recovery detection
 
-The state file should be durable but simple. It is acceptable to rewrite the
-whole JSON file each run.
+The state file is durable but simple. The runner rewrites the whole JSON file
+each run.
 
 Example shape:
 
@@ -210,15 +224,15 @@ Responsibilities:
 - execute configured notification command
 - handle notification command failures without crashing the whole run
 
-Notification transport should stay outside the watchdog. For example, Telegram
-delivery can live in `/usr/local/bin/telegram-notify`.
+Notification transport stays outside the watchdog. For example, Telegram
+delivery lives in a local command such as `/usr/local/bin/telegram-notify`.
 
-Each check may define `notify_cmd` to override `[global] notify_cmd`. This is
-useful when different services should alert different Telegram topics, email
-aliases, or local handlers.
+Each check may define `notify_cmd` to override `[global] notify_cmd`. This
+supports different Telegram topics, email aliases, or local handlers per
+service.
 
-`notify_cmd` should be rendered with the same placeholder context as messages
-before it is split into arguments. The command must still be executed without a
+`notify_cmd` is rendered with the same placeholder context as messages before it
+is split into arguments. The command is executed without a
 shell.
 
 ### `kuma.py`
@@ -229,8 +243,7 @@ Responsibilities:
 - map watchdog status to Kuma status
 - include a concise status message
 
-The watchdog should not expose a local HTTP endpoint unless a future use case
-requires it.
+The watchdog does not expose a local HTTP endpoint.
 
 ### `checks/*`
 
@@ -270,7 +283,7 @@ host=127.0.0.1
 port=50001
 ```
 
-Adding a new check should require:
+Adding a new check requires:
 
 - adding a new `service_check/checks/<check_name>/` directory
 - adding `check.py` with `run(config)`
@@ -282,7 +295,7 @@ Adding a new check should require:
 
 Every check returns the same result shape.
 
-Suggested dataclass:
+Result dataclass:
 
 ```python
 from dataclasses import dataclass, field
@@ -323,7 +336,7 @@ failure_message=Monero daemon unhealthy: height={height}, target={target_height}
 success_message=Monero daemon healthy: height={height}
 ```
 
-The rendering context should include:
+The rendering context includes:
 
 - runner fields such as `hostname`, `section`, and `check`
 - check config keys such as `notify_topic`
@@ -331,18 +344,17 @@ The rendering context should include:
 - state fields such as `failure_count`
 - all keys from `CheckResult.details`
 
-Template rendering should be intentionally limited:
+Template rendering is intentionally limited:
 
 - support only `{key}` replacement
 - do not support expressions, function calls, conditionals, or loops
 - do not invoke a shell while rendering
 - handle missing placeholders without crashing the watchdog run
 
-The configured `failure_message` should be treated as a problem-state
-presentation template. The configured `success_message` should be used for `OK`
-status, recovery notifications, and Kuma `OK` pushes. The original
-`CheckResult.message` should still be stored in details or state when useful for
-debugging.
+The configured `failure_message` is treated as a problem-state presentation
+template. The configured `success_message` is used for `OK` status, recovery
+notifications, and Kuma `OK` pushes. The original `CheckResult.message` remains
+available in details or state when useful for debugging.
 
 ## Retry and Alert Thresholds
 
@@ -377,7 +389,7 @@ This protects against short restarts and brief network blips.
 
 ## Notification Policy
 
-Suggested policy:
+Notification policy:
 
 | Previous State | Current State | Action |
 | --- | --- | --- |
@@ -391,23 +403,23 @@ Suggested policy:
 
 This policy belongs in the runner/state layer, not in individual check functions.
 
-Checks may opt into `WARN` notifications with `notify_on_warn=1`. This should be
-used sparingly, for cases where `WARN` is the desired alert status, such as
+Checks may opt into `WARN` notifications with `notify_on_warn=1`. Use this only
+for cases where `WARN` is the desired alert status, such as
 `github_release_update` reporting that a new version is available.
 
 ## Aggregation
 
-Per-check results should be aggregated for process exit code and optional
-aggregate reporting.
+Per-check results are aggregated for process exit code and optional aggregate
+reporting.
 
-Suggested aggregate rules:
+Aggregate rules:
 
 - any `CRIT`: aggregate `CRIT`
 - else any `UNKNOWN`: aggregate `UNKNOWN`
 - else any `WARN`: aggregate `WARN`
 - otherwise `OK`
 
-Suggested process exit codes:
+Process exit codes:
 
 | Exit Code | Meaning |
 | --- | --- |
@@ -417,7 +429,7 @@ Suggested process exit codes:
 
 ## Uptime Kuma Mapping
 
-Kuma push URLs should be configured per check section.
+Kuma push URLs are configured per check section.
 
 Example:
 
@@ -435,9 +447,9 @@ kuma_push_url=https://kuma.example.com/api/push/wg-btrad-token
 failure_message=WireGuard peer btrad is stale: latest_handshake_age={latest_handshake_age}s
 ```
 
-If a section has no `kuma_push_url`, Kuma push should be skipped for that check.
+If a section has no `kuma_push_url`, Kuma push is skipped for that check.
 
-Suggested mapping:
+Kuma mapping:
 
 | Check Status | Kuma |
 | --- | --- |
@@ -446,29 +458,28 @@ Suggested mapping:
 | `CRIT` | down |
 | `UNKNOWN` | down |
 
-The Kuma message should use the same message rendering path as local alerts, so
+The Kuma message uses the same message rendering path as local alerts, so
 placeholders from `CheckResult.details` are available.
 
 An optional aggregate Kuma monitor can be supported with
-`aggregate_kuma_push_url`, but it should be secondary. Per-check push URLs are
+`aggregate_kuma_push_url`, but it is secondary. Per-check push URLs are
 the preferred model because they provide clearer dashboard rows and separate
 history per service.
 
 ## Versioning And Updates
 
-The installed application should expose a local version. Update detection should
-be implemented as a normal check function that uses the same runner, state,
-message rendering, notification, scheduling, and Kuma push behavior as service
-health checks.
+The installed application exposes a local version. Update detection is future
+work and uses the same runner, state, message rendering, notification,
+scheduling, and Kuma push behavior as service health checks.
 
-Recommended local version source:
+Local version source:
 
 ```python
 # service_check/__init__.py
 __version__ = "0.1.0"
 ```
 
-Recommended release tag format:
+Release tag format:
 
 ```text
 v0.1.0
@@ -476,10 +487,10 @@ v0.2.0
 v1.0.0
 ```
 
-The update checker should compare the local version against the GitHub release
+The update checker compares the local version against the GitHub release
 `tag_name`, after stripping an optional leading `v`.
 
-Suggested CLI:
+Update CLI:
 
 ```text
 --version
@@ -497,7 +508,7 @@ Suggested CLI:
 - return `UNKNOWN` when the update check cannot be completed
 - never modify installed files
 
-Recommended config:
+Example config:
 
 ```ini
 [service_check_update]
@@ -513,7 +524,7 @@ kuma_push_url=https://kuma.example.com/api/push/service-check-update-token
 failure_message=service-check update available: {current_version} -> {latest_version} ({release_url})
 ```
 
-The result details should include:
+The result details include:
 
 - `current_version`
 - `latest_version`
@@ -530,13 +541,13 @@ The result details should include:
 - preserve `/etc/service-check` and `/var/lib/service-check`
 - run `systemctl daemon-reload` if unit files changed
 
-Automatic installation should not be enabled by default. A watchdog that can
-self-modify as root is more operationally risky than one that only reports that
-an update is available.
+Automatic installation is not enabled by default. A watchdog that can
+self-modify as root is more operationally risky than one that only reports an
+available update.
 
 ## Secrets
 
-Secrets should not live in the main config or repo examples.
+Secrets do not live in the main config or repo examples.
 
 Use file references:
 
@@ -544,11 +555,11 @@ Use file references:
 rpc_password_file=/etc/service-check/secrets/monero-wallet-rpc.pw
 ```
 
-Check functions should read secret files only when needed.
+Check functions read secret files only when needed.
 
 ## Error Handling
 
-Expected failures should return `CRIT` or `WARN`.
+Expected failures return `CRIT` or `WARN`.
 
 Examples:
 
@@ -556,7 +567,7 @@ Examples:
 - peer count below threshold: `WARN` or `CRIT`, depending on check policy
 - TCP port refused: `CRIT`
 
-Unexpected failures should return `UNKNOWN`.
+Unexpected failures return `UNKNOWN`.
 
 Examples:
 
@@ -565,8 +576,46 @@ Examples:
 - missing local command
 - command output cannot be parsed
 
-The runner should catch uncaught check exceptions and convert them to `UNKNOWN`
-so one bad check does not prevent the rest from running.
+The runner catches uncaught check exceptions and converts them to `UNKNOWN` so
+one bad check does not prevent the rest from running.
+
+## Future Check Designs
+
+These checks are design targets, not implemented checks in the current package.
+
+| Check | Purpose |
+| --- | --- |
+| `monerod_sync` | Verify Monero daemon RPC health, sync lag, offline state, and outgoing peers. |
+| `monero_wallet_rpc` | Verify wallet RPC responds and authenticates. |
+| `wireguard_peer` | Verify interface, peer presence, and latest handshake age. |
+| `http_json` | Verify an HTTP endpoint responds with valid JSON and optional expected fields. |
+| `bitcoind_sync` | Verify Bitcoin Core sync state and peer count. |
+| `github_release_update` | Check whether a newer `service-check` GitHub Release is available. |
+
+For `monerod_sync`, useful health criteria are:
+
+- RPC responds.
+- `offline` is false.
+- `target_height` is zero or local height is close to target height.
+- outgoing peers are at or above `min_outgoing_peers`.
+- optional synchronized flag is true if available.
+
+For `wireguard_peer`, useful health criteria are:
+
+- interface exists
+- peer exists
+- latest handshake age is below the configured threshold
+
+Handshake age can be stale on idle tunnels. If the tunnel is expected to be
+continuously usable, add an optional ping check through the tunnel.
+
+For `bitcoind_sync`, useful health criteria are:
+
+- `bitcoin-cli` can reach the node.
+- `initialblockdownload` is false.
+- `blocks` is close to `headers`.
+- peer count is above the configured minimum.
+- `verificationprogress` is close to 1.
 
 ## Extension Rules
 

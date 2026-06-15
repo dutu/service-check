@@ -14,7 +14,7 @@ Optional:
 - `timeout`: connection timeout in seconds, defaults to `[global] default_timeout`
 - `failure_message`: alert template used when the port is unreachable
 - `success_message`: message template used for OK status, recovery notifications, and Kuma OK pushes
-- `interval_minutes`: how often this check should run
+- `interval_minutes`: how often this check runs
 - `retries`: immediate retries before the run is considered failed
 - `retry_delay`: seconds between immediate retries
 - `fail_after`: failed runs required before local notification
