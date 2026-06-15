@@ -394,6 +394,8 @@ Deployment targets:
 /opt/service-check-venv/bin/service-check
 /etc/service-check/service-check.ini
 /etc/service-check/service-check.ini.d/
+/etc/systemd/system/service-check.service
+/etc/systemd/system/service-check.timer
 /var/lib/service-check/state.json
 ```
 
@@ -414,6 +416,25 @@ sudo cp systemd/service-check.timer /etc/systemd/system/service-check.timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now service-check.timer
 ```
+
+Post-install check:
+
+```bash
+/opt/service-check-venv/bin/service-check --version
+sudo /opt/service-check-venv/bin/service-check --config /etc/service-check/service-check.ini --all --dry-run
+systemctl is-enabled service-check.timer
+systemctl is-active service-check.timer
+systemctl status --no-pager service-check.timer service-check.service
+systemctl list-timers --all --no-pager service-check.timer
+sudo journalctl -u service-check.service -n 20 --no-pager
+```
+
+The version command confirms the installed entry point. The dry run validates
+configuration and executes all enabled checks without sending notifications,
+without pushing to Kuma, and without writing state. The systemd commands confirm
+that the timer is enabled, active, and scheduled. The service is `oneshot`, so
+it is normally inactive between timer runs; use `journalctl` to inspect recent
+run output after the timer has fired.
 
 The current package install provides the `service-check` command from
 `pyproject.toml` inside `/opt/service-check-venv`. Production deployment also
@@ -464,7 +485,7 @@ Description=Run service-check watchdog
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/service-check --config /etc/service-check/service-check.ini
+ExecStart=/opt/service-check-venv/bin/service-check --config /etc/service-check/service-check.ini
 ```
 
 `service-check.timer`:
