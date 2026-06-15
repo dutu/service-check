@@ -408,6 +408,7 @@ Deployment targets:
 
 ```text
 /opt/service-check-venv/bin/service-check
+/usr/local/bin/service-check
 /etc/service-check/service-check.ini
 /etc/service-check/service-check.ini.d/
 /etc/systemd/system/service-check.service
@@ -429,6 +430,7 @@ The installer performs the normal deployment flow:
 - uses `/opt/service-check-src` as the stable source checkout
 - creates or updates `/opt/service-check-venv`
 - installs the package into the virtual environment
+- links `/usr/local/bin/service-check` to the virtualenv command
 - creates `/etc/service-check`, `/etc/service-check/service-check.ini.d`, and `/var/lib/service-check`
 - copies production config with non-overwrite behavior
 - repairs the old local-dev relative state paths if found in `/etc/service-check/service-check.ini`
@@ -449,6 +451,7 @@ sudo git clone https://github.com/dutu/service-check.git /opt/service-check-src
 cd /opt/service-check-src
 sudo python3 -m venv /opt/service-check-venv
 sudo /opt/service-check-venv/bin/python -m pip install .
+sudo ln -sfn /opt/service-check-venv/bin/service-check /usr/local/bin/service-check
 sudo mkdir -p /etc/service-check/service-check.ini.d /var/lib/service-check
 sudo cp -n examples/service-check.production.ini /etc/service-check/service-check.ini
 sudo cp -n examples/service-check.ini.d/10-version.ini /etc/service-check/service-check.ini.d/10-version.ini
@@ -461,9 +464,9 @@ sudo systemctl enable --now service-check.timer
 Post-install check:
 
 ```bash
-/opt/service-check-venv/bin/service-check --version
-sudo /opt/service-check-venv/bin/service-check --config /etc/service-check/service-check.ini --all --dry-run
-sudo /opt/service-check-venv/bin/service-check --config /etc/service-check/service-check.ini --all --no-notify
+service-check --version
+sudo service-check --config /etc/service-check/service-check.ini --all --dry-run
+sudo service-check --config /etc/service-check/service-check.ini --all --no-notify
 sudo test -f /var/lib/service-check/state.json
 systemctl is-enabled service-check.timer
 systemctl is-active service-check.timer
@@ -482,7 +485,8 @@ timer runs; use `journalctl` to inspect recent run output after the timer has
 fired.
 
 The current package install provides the `service-check` command from
-`pyproject.toml` inside `/opt/service-check-venv`. Production deployment also
+`pyproject.toml` inside `/opt/service-check-venv`, and the installer links it to
+`/usr/local/bin/service-check` for normal shell use. Production deployment also
 needs `/etc/service-check`, `/var/lib/service-check`, and the systemd unit
 files.
 
@@ -503,7 +507,7 @@ Update flow:
 cd /opt/service-check-src
 sudo git pull --ff-only
 sudo bash install.sh
-/opt/service-check-venv/bin/service-check --version
+service-check --version
 ```
 
 The update flow does not overwrite files in `/etc/service-check`, so existing

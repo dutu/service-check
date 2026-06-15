@@ -8,6 +8,7 @@ CONFIG_DIR="/etc/service-check"
 DROPIN_DIR="${CONFIG_DIR}/service-check.ini.d"
 STATE_DIR="/var/lib/service-check"
 SYSTEMD_DIR="/etc/systemd/system"
+BIN_LINK="/usr/local/bin/service-check"
 
 log() {
   printf '[%s] %s\n' "${APP_NAME}" "$*"
@@ -94,6 +95,9 @@ install_runtime_files() {
   log "Installing systemd units"
   install -m 0644 "${SRC_DIR}/systemd/service-check.service" "${SYSTEMD_DIR}/service-check.service"
   install -m 0644 "${SRC_DIR}/systemd/service-check.timer" "${SYSTEMD_DIR}/service-check.timer"
+
+  log "Installing ${BIN_LINK}"
+  ln -sfn "${VENV_DIR}/bin/service-check" "${BIN_LINK}"
 }
 
 disable_known_old_tcp_dropin() {
@@ -137,14 +141,14 @@ enable_systemd_timer() {
 
 verify_installation() {
   log "Verifying installed command"
-  "${VENV_DIR}/bin/service-check" --version
+  service-check --version
 
   log "Verifying configuration with a dry run"
-  "${VENV_DIR}/bin/service-check" --config "${CONFIG_DIR}/service-check.ini" --all --dry-run
+  service-check --config "${CONFIG_DIR}/service-check.ini" --all --dry-run
 
   log "Running checks once without local notifications"
   set +e
-  "${VENV_DIR}/bin/service-check" --config "${CONFIG_DIR}/service-check.ini" --all --no-notify
+  service-check --config "${CONFIG_DIR}/service-check.ini" --all --no-notify
   local check_status=$?
   set -e
   if [[ "${check_status}" -ne 0 ]]; then
