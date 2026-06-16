@@ -212,13 +212,13 @@ def process_result(
             or consecutive == fail_after
             or _seconds_since(last_notification_at, now) >= notify_repeat_after_seconds
         )
-    elif was_problem and global_config.notify_on_recovery:
+    elif was_problem and check_config.get_bool("notify_on_recovery", defaults.notify_on_recovery):
         should_notify = True
     elif result.status == OK and check_config.get_bool("notify_on_success_once", False):
         should_notify = not previous.get("last_success_notification_at")
 
     notification_error = None
-    notify_cmd = render_notify_cmd(check_config, global_config, context) if should_notify and not no_notify else None
+    notify_cmd = render_notify_cmd(check_config, defaults, context) if should_notify and not no_notify else None
     notification_was_sent = bool(notify_cmd)
     if notify_cmd:
         notification_error = send_notification(notify_cmd, message, dry_run)
@@ -299,10 +299,10 @@ def build_message_context(
 
 def render_notify_cmd(
     check_config: CheckConfig,
-    global_config: GlobalConfig,
+    defaults: CheckDefaults,
     context: dict[str, Any],
 ) -> str | None:
-    notify_cmd = check_config.get("notify_cmd", global_config.notify_cmd)
+    notify_cmd = check_config.get("notify_cmd", defaults.notify_cmd)
     if not notify_cmd:
         return None
     return render_template(notify_cmd, context)

@@ -214,16 +214,16 @@ Example:
 [global]
 hostname=home-mt
 state_file=/var/lib/service-check/state.json
-notify_cmd=/usr/local/bin/telegram-notify infra
-notify_on_recovery=1
 
 [default]
+notify_cmd=/usr/local/bin/telegram-notify infra
 interval_seconds=300
 timeout_seconds=5
 retries=2
 retry_delay_seconds=5
 fail_after=3
 notify_repeat_after_minutes=60
+notify_on_recovery=1
 
 [electrs_tcp]
 enabled=1
@@ -245,19 +245,19 @@ Common global keys:
 | `hostname` | Name included in notifications and Kuma messages. Defaults to the machine hostname. |
 | `state_file` | JSON state path. Defaults to `/var/lib/service-check/state.json`. |
 | `lock_file` | Lock path. Defaults to `state_file` plus `.lock`. |
-| `notify_cmd` | Local command used to send alerts. |
-| `notify_on_recovery` | Whether to notify when a failed check recovers. Defaults to `1`. |
 
 Common default keys in `[default]`:
 
 | Key | Purpose |
 | --- | --- |
+| `notify_cmd` | Local command used to send alerts. |
 | `interval_seconds` | Interval used when a check section omits `interval_seconds`. Defaults to `300`. |
 | `timeout_seconds` | Default network timeout in seconds. Defaults to `5`. |
 | `retries` | Immediate retries inside one watchdog run. Defaults to `0`. |
 | `retry_delay_seconds` | Delay in seconds between immediate retries. Defaults to `1`. |
 | `fail_after` | Failed due runs required before alerting. Defaults to `1`. |
 | `notify_repeat_after_minutes` | Minutes before repeating a notification for an unresolved problem. Defaults to `60`. |
+| `notify_on_recovery` | Whether to notify when a failed check recovers. Defaults to `1`. |
 
 Per-check sections may define or override `[default]` keys plus:
 
@@ -267,6 +267,7 @@ Per-check sections may define or override `[default]` keys plus:
 - `retry_delay_seconds`
 - `fail_after`
 - `notify_repeat_after_minutes`
+- `notify_on_recovery`
 - `failure_message`
 - `success_message`
 - `notify_cmd`
@@ -368,7 +369,7 @@ not in this README's implemented checks table.
 Example:
 
 ```ini
-[global]
+[default]
 notify_cmd=/usr/local/bin/telegram-notify --level {notify_level} infra
 ```
 

@@ -53,18 +53,18 @@ class GlobalConfig:
     hostname: str
     state_file: str
     lock_file: str
-    notify_cmd: str | None
-    notify_on_recovery: bool
 
 
 @dataclass(frozen=True)
 class CheckDefaults:
+    notify_cmd: str | None
     interval_seconds: float
     timeout_seconds: float
     retries: int
     retry_delay_seconds: float
     fail_after: int
     notify_repeat_after_minutes: float
+    notify_on_recovery: bool
 
 
 @dataclass(frozen=True)

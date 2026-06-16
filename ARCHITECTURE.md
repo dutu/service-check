@@ -235,7 +235,7 @@ Responsibilities:
 Notification transport stays outside the watchdog. For example, Telegram
 delivery lives in a local command such as `/usr/local/bin/telegram-notify`.
 
-Each check may define `notify_cmd` to override `[global] notify_cmd`. This
+Each check may define `notify_cmd` to override `[default] notify_cmd`. This
 supports different Telegram topics, email aliases, or local handlers per
 service.
 
