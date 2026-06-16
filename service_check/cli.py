@@ -19,8 +19,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run local service health checks.")
     parser.add_argument("--config", default=DEFAULT_CONFIG_PATH, help="INI config path")
     parser.add_argument("--config-dir", help="Optional INI drop-in directory. Defaults to <config>.d")
-    parser.add_argument("--all", action="store_true", help="Run all enabled checks, ignoring interval_minutes")
-    parser.add_argument("--check", dest="check_section", help="Run one check section regardless of interval")
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--all", action="store_true", help="Run all enabled checks, ignoring interval_minutes")
+    selection.add_argument("--check", dest="check_section", help="Run one check section regardless of interval")
+    selection.add_argument(
+        "--results-for",
+        metavar="SECTION|all",
+        help="Show results for one enabled section, or all enabled sections with 'all'",
+    )
     parser.add_argument("--list-scheduled", action="store_true", help="List enabled checks and their schedule state")
     parser.add_argument("--dry-run", action="store_true", help="Do not send notifications or Kuma pushes")
     parser.add_argument("--no-notify", action="store_true", help="Do not send local notifications")
@@ -39,18 +45,27 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         loaded = load_config(args.config, args.config_dir)
+        check_section, run_all = resolve_selection(args.check_section, args.all, args.results_for)
         if args.list_scheduled:
-            return list_scheduled_checks(loaded, args.check_section)
+            return list_scheduled_checks(loaded, check_section)
         return run(
             loaded,
-            check_section=args.check_section,
-            run_all=args.all,
+            check_section=check_section,
+            run_all=run_all,
             dry_run=args.dry_run,
             no_notify=args.no_notify,
         )
     except Exception as exc:  # noqa: BLE001 - CLI should convert failures to exit code.
         logging.error("%s", exc)
         return 2
+
+
+def resolve_selection(check_section: str | None, run_all: bool, results_for: str | None) -> tuple[str | None, bool]:
+    if results_for is None:
+        return check_section, run_all
+    if results_for == "all":
+        return None, True
+    return results_for, False
 
 
 def list_scheduled_checks(loaded: LoadedConfig, check_section: str | None = None) -> int:

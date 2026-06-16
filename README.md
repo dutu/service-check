@@ -98,6 +98,13 @@ Run one enabled section, ignoring `interval_minutes`:
 python -m service_check.cli --config examples/service-check.ini --check github_release_update --dry-run
 ```
 
+Show results for one enabled section or all sections with one option:
+
+```bash
+python -m service_check.cli --config examples/service-check.ini --results-for github_release_update --dry-run
+python -m service_check.cli --config examples/service-check.ini --results-for all --dry-run
+```
+
 List enabled checks and their schedule state without running them:
 
 ```bash
@@ -118,6 +125,7 @@ Useful CLI options:
 | `--config-dir PATH` | Optional drop-in directory. Defaults to `<config>.d`. |
 | `--all` | Run all enabled checks regardless of interval. |
 | `--check SECTION` | Run one enabled section regardless of interval. |
+| `--results-for SECTION\|all` | Run one enabled section, or all enabled sections with `all`, regardless of interval. |
 | `--list-scheduled` | List enabled checks, local last run time, next due time, and last status. |
 | `--dry-run` | Skip notifications and Kuma pushes. |
 | `--no-notify` | Skip local notification command execution. |
