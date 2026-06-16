@@ -26,7 +26,7 @@ Optional:
 - `retries`: immediate retries before the run is considered failed
 - `retry_delay`: seconds between immediate retries
 - `fail_after`: failed runs required before local notification
-- `repeat_after`: seconds before repeating an unresolved alert
+- `notify_repeat_after_minutes`: minutes before repeating a notification for an unresolved problem
 - `notify_cmd`: local notification command override for this check
 - `kuma_push_url`: optional per-check Uptime Kuma push URL
 
@@ -61,7 +61,7 @@ enabled=1
 check=github_release_update
 repository=dutu/service-check
 interval_minutes=1440
-repeat_after=86400
+notify_repeat_after_minutes=1440
 notify_on_warn=1
 notify_on_success_once=1
 success_message=service-check {current_version} is up-to-date

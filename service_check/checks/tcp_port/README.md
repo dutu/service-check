@@ -18,7 +18,7 @@ Optional:
 - `retries`: immediate retries before the run is considered failed
 - `retry_delay`: seconds between immediate retries
 - `fail_after`: failed runs required before local notification
-- `repeat_after`: seconds before repeating an unresolved alert
+- `notify_repeat_after_minutes`: minutes before repeating a notification for an unresolved problem
 - `notify_cmd`: local notification command override for this check
 - `kuma_push_url`: optional per-check Uptime Kuma push URL
 

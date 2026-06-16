@@ -219,7 +219,7 @@ default_timeout=5
 default_retries=2
 default_retry_delay=5
 default_fail_after=3
-default_repeat_after=3600
+default_notify_repeat_after_minutes=60
 notify_on_recovery=1
 
 [electrs_tcp]
@@ -248,7 +248,7 @@ Common global keys:
 | `default_retries` | Immediate retries inside one watchdog run. Defaults to `0`. |
 | `default_retry_delay` | Delay in seconds between immediate retries. Defaults to `1`. |
 | `default_fail_after` | Failed due runs required before alerting. Defaults to `1`. |
-| `default_repeat_after` | Seconds before repeating an alert for a still-broken check. Defaults to `3600`. |
+| `default_notify_repeat_after_minutes` | Minutes before repeating a notification for an unresolved problem. Defaults to `60`. |
 | `notify_on_recovery` | Whether to notify when a failed check recovers. Defaults to `1`. |
 
 Per-check sections may define or override:
@@ -258,7 +258,7 @@ Per-check sections may define or override:
 - `retries`
 - `retry_delay`
 - `fail_after`
-- `repeat_after`
+- `notify_repeat_after_minutes`
 - `failure_message`
 - `success_message`
 - `notify_cmd`
@@ -333,7 +333,7 @@ Alert behavior:
 | `OK -> CRIT` | Notify after `fail_after` failed runs. |
 | `WARN -> CRIT` | Notify after `fail_after` failed runs. |
 | `CRIT -> OK` | Notify recovery if enabled. |
-| `CRIT -> CRIT` | Do not repeat unless `repeat_after` elapsed. |
+| `CRIT -> CRIT` | Do not repeat unless `notify_repeat_after_minutes` elapsed. |
 | `OK -> WARN` | No local alert unless `notify_on_warn=1`. |
 | first `OK` | Notify once only if `notify_on_success_once=1`. |
 

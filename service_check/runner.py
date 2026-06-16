@@ -197,12 +197,15 @@ def process_result(
     should_notify = False
     if is_problem:
         fail_after = check_config.get_int("fail_after", global_config.default_fail_after)
-        repeat_after = check_config.get_int("repeat_after", global_config.default_repeat_after)
+        notify_repeat_after_seconds = int(
+            check_config.get_float("notify_repeat_after_minutes", global_config.default_notify_repeat_after_minutes)
+            * 60
+        )
         last_notification_at = previous.get("last_notification_at")
         should_notify = consecutive >= fail_after and (
             not was_problem
             or consecutive == fail_after
-            or _seconds_since(last_notification_at, now) >= repeat_after
+            or _seconds_since(last_notification_at, now) >= notify_repeat_after_seconds
         )
     elif was_problem and global_config.notify_on_recovery:
         should_notify = True

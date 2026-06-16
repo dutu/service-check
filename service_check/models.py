@@ -59,7 +59,7 @@ class GlobalConfig:
     default_retries: int
     default_retry_delay: float
     default_fail_after: int
-    default_repeat_after: int
+    default_notify_repeat_after_minutes: float
     notify_on_recovery: bool
 
 

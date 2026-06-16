@@ -36,7 +36,7 @@ def load_config(path: str, config_dir: str | None = None) -> LoadedConfig:
         default_retries=int(_get(global_section, "default_retries", "0")),
         default_retry_delay=float(_get(global_section, "default_retry_delay", "1")),
         default_fail_after=int(_get(global_section, "default_fail_after", "1")),
-        default_repeat_after=int(_get(global_section, "default_repeat_after", "3600")),
+        default_notify_repeat_after_minutes=float(_get(global_section, "default_notify_repeat_after_minutes", "60")),
         notify_on_recovery=_get_bool(global_section, "notify_on_recovery", True),
     )
 

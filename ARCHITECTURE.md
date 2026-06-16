@@ -397,7 +397,7 @@ Notification policy:
 | `OK` | `WARN` | Usually no notification. |
 | `OK` | `CRIT` | Notify after `fail_after`. |
 | `WARN` | `CRIT` | Notify after `fail_after`. |
-| `CRIT` | `CRIT` | Notify only after `repeat_after`. |
+| `CRIT` | `CRIT` | Notify only after `notify_repeat_after_minutes`. |
 | `CRIT` | `OK` | Notify recovery if enabled. |
 | any | `UNKNOWN` | Treat like failure unless configured otherwise. |
 
@@ -517,7 +517,7 @@ interval_minutes=1440
 check=github_release_update
 repository=dutu/service-check
 fail_after=1
-repeat_after=86400
+notify_repeat_after_minutes=1440
 notify_on_warn=1
 notify_on_success_once=1
 kuma_push_url=https://kuma.example.com/api/push/service-check-update-token
