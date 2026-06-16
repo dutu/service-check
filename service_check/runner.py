@@ -22,6 +22,16 @@ def run(
     dry_run: bool = False,
     no_notify: bool = False,
 ) -> int:
+    started = time.monotonic()
+    LOGGER.info(
+        "run_start enabled_checks=%d check_section=%s run_all=%s dry_run=%s no_notify=%s state_file=%s",
+        len(loaded.checks),
+        check_section or "-",
+        run_all,
+        dry_run,
+        no_notify,
+        loaded.global_config.state_file,
+    )
     store = StateStore(loaded.global_config.state_file, loaded.global_config.lock_file)
     worst_status = OK
     if dry_run:
@@ -35,6 +45,7 @@ def run(
         )
         if not selected:
             return handle_no_checks(check_section)
+        LOGGER.info("checks_selected count=%d sections=%s", len(selected), _format_sections(selected))
         worst_status = process_selected_checks(
             selected=selected,
             checks_state=state.setdefault("checks", {}),
@@ -54,6 +65,7 @@ def run(
             )
             if not selected:
                 return handle_no_checks(check_section)
+            LOGGER.info("checks_selected count=%d sections=%s", len(selected), _format_sections(selected))
             worst_status = process_selected_checks(
                 selected=selected,
                 checks_state=state.setdefault("checks", {}),
@@ -63,7 +75,14 @@ def run(
                 no_notify=no_notify,
             )
 
-    return 1 if worst_status in {CRIT, UNKNOWN} else 0
+    exit_code = 1 if worst_status in {CRIT, UNKNOWN} else 0
+    LOGGER.info(
+        "run_end worst_status=%s exit_code=%d duration_ms=%d",
+        worst_status,
+        exit_code,
+        _elapsed_ms(started),
+    )
+    return exit_code
 
 
 def process_selected_checks(
@@ -76,7 +95,9 @@ def process_selected_checks(
 ) -> str:
     worst_status = OK
     for check_config in selected:
+        started = time.monotonic()
         result = run_check_with_retries(check_config, defaults)
+        duration_ms = _elapsed_ms(started)
         if result.status in {CRIT, UNKNOWN}:
             worst_status = result.status
         process_result(
@@ -87,6 +108,7 @@ def process_selected_checks(
             checks_state=checks_state,
             dry_run=dry_run,
             no_notify=no_notify,
+            duration_ms=duration_ms,
         )
         print(f"{check_config.section}: {result.status} - {result.message}")
     return worst_status
@@ -146,8 +168,24 @@ def run_check_with_retries(check_config: CheckConfig, defaults: CheckDefaults) -
     for attempt in range(1, attempts + 1):
         last_result = run_one_check(check_config, defaults)
         if last_result.status not in {CRIT, UNKNOWN}:
+            if attempt > 1:
+                LOGGER.info(
+                    "check_retry_recovered section=%s attempt=%d attempts=%d status=%s",
+                    check_config.section,
+                    attempt,
+                    attempts,
+                    last_result.status,
+                )
             return last_result
         if attempt < attempts:
+            LOGGER.info(
+                "check_retry section=%s attempt=%d attempts=%d status=%s delay_seconds=%s",
+                check_config.section,
+                attempt,
+                attempts,
+                last_result.status,
+                _format_number(retry_delay_seconds),
+            )
             time.sleep(retry_delay_seconds)
 
     assert last_result is not None
@@ -183,6 +221,7 @@ def process_result(
     checks_state: dict[str, Any],
     dry_run: bool,
     no_notify: bool,
+    duration_ms: int,
 ) -> None:
     now = _utc_now()
     previous = checks_state.get(check_config.section, {})
@@ -200,6 +239,7 @@ def process_result(
     message = render_result_message(check_config, result, context)
 
     should_notify = False
+    notification_reason = "not_needed"
     if is_problem:
         fail_after = check_config.get_int("fail_after", defaults.fail_after)
         notify_repeat_after_seconds = int(
@@ -212,20 +252,44 @@ def process_result(
             or consecutive == fail_after
             or _seconds_since(last_notification_at, now) >= notify_repeat_after_seconds
         )
+        if should_notify:
+            notification_reason = "problem"
+        elif consecutive < fail_after:
+            notification_reason = "below_fail_after"
+        else:
+            notification_reason = "repeat_interval_not_elapsed"
     elif was_problem and check_config.get_bool("notify_on_recovery", defaults.notify_on_recovery):
         should_notify = True
+        notification_reason = "recovery"
+    elif was_problem:
+        notification_reason = "recovery_disabled"
     elif result.status == OK and check_config.get_bool("notify_on_first_success", defaults.notify_on_first_success):
         should_notify = not previous.get("last_success_notification_at")
+        notification_reason = "first_success" if should_notify else "first_success_already_sent"
 
     notification_error = None
     notify_cmd = render_notify_cmd(check_config, defaults, context) if should_notify and not no_notify else None
     notification_was_sent = bool(notify_cmd)
+    notification_action = "none"
+    if should_notify and no_notify:
+        notification_action = "suppressed_no_notify"
+    elif notify_cmd and dry_run:
+        notification_action = "dry_run"
+    elif notify_cmd:
+        notification_action = "attempted"
     if notify_cmd:
         notification_error = send_notification(notify_cmd, message, dry_run)
         if notification_error:
             notification_was_sent = False
+            notification_action = "failed"
             LOGGER.warning("notification failed for %s: %s", check_config.section, notification_error)
+        elif not dry_run:
+            notification_action = "sent"
 
+    kuma_configured = bool(check_config.get("kuma_push_url"))
+    kuma_action = "none"
+    if kuma_configured:
+        kuma_action = "dry_run" if dry_run else "attempted"
     kuma_error = push_kuma(
         check_config.get("kuma_push_url"),
         result.status,
@@ -234,7 +298,26 @@ def process_result(
         dry_run=dry_run,
     )
     if kuma_error:
+        kuma_action = "failed"
         LOGGER.warning("kuma push failed for %s: %s", check_config.section, kuma_error)
+    elif kuma_configured and not dry_run:
+        kuma_action = "sent"
+
+    LOGGER.info(
+        "check_result section=%s check=%s status=%s duration_ms=%d consecutive_failures=%d was_problem=%s "
+        "is_problem=%s notification=%s notification_reason=%s kuma=%s message=%r",
+        check_config.section,
+        check_config.check,
+        result.status,
+        duration_ms,
+        consecutive,
+        was_problem,
+        is_problem,
+        notification_action,
+        notification_reason,
+        kuma_action,
+        _truncate(message),
+    )
 
     checks_state[check_config.section] = {
         "last_result": serialize_check_result(result),
@@ -332,3 +415,24 @@ def _seconds_since(previous_iso: str | None, now_iso: str) -> int:
     except ValueError:
         return 10**9
     return int((now - previous).total_seconds())
+
+
+def _elapsed_ms(started: float) -> int:
+    return int((time.monotonic() - started) * 1000)
+
+
+def _format_sections(checks: list[CheckConfig]) -> str:
+    return ",".join(check.section for check in checks)
+
+
+def _truncate(value: str, limit: int = 240) -> str:
+    normalized = " ".join(value.split())
+    if len(normalized) <= limit:
+        return normalized
+    return f"{normalized[: limit - 3]}..."
+
+
+def _format_number(value: float) -> str:
+    if value.is_integer():
+        return str(int(value))
+    return str(value)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from contextlib import contextmanager
 from pathlib import Path
@@ -10,6 +11,7 @@ from service_check import __version__
 from service_check.config import ensure_parent_dir
 
 STATE_VERSION_KEY = "service_check_version"
+LOGGER = logging.getLogger(__name__)
 
 
 class StateStore:
@@ -34,13 +36,16 @@ class StateStore:
     def load(self) -> dict[str, Any]:
         path = Path(self.state_file)
         if not path.exists():
+            LOGGER.info("state_load path=%s exists=false", self.state_file)
             return _default_state()
         with path.open("r", encoding="utf-8") as handle:
             data = json.load(handle)
         if not isinstance(data, dict):
+            LOGGER.warning("state_load path=%s invalid_root=true", self.state_file)
             return _default_state()
         data[STATE_VERSION_KEY] = __version__
         data.setdefault("checks", {})
+        LOGGER.info("state_load path=%s checks=%d", self.state_file, len(data.get("checks", {})))
         return data
 
     def save(self, state: dict[str, Any]) -> None:
@@ -51,6 +56,7 @@ class StateStore:
             json.dump(state, handle, indent=2, sort_keys=True)
             handle.write("\n")
         os.replace(tmp_path, self.state_file)
+        LOGGER.info("state_save path=%s checks=%d", self.state_file, len(state.get("checks", {})))
 
 
 def _default_state() -> dict[str, Any]:

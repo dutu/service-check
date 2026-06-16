@@ -63,7 +63,7 @@ FLOAT_KEYS = {"interval_minutes", "timeout_seconds", "retry_delay_seconds", "not
 
 def load_config(path: str, config_dir: str | None = None) -> LoadedConfig:
     parser, read_files = read_config_parser(path, config_dir)
-    LOGGER.debug("loaded config files: %s", ", ".join(read_files))
+    LOGGER.info("config_loaded files=%s", ",".join(read_files))
 
     global_section = parser["global"] if parser.has_section("global") else {}
     default_section = parser["default"] if parser.has_section("default") else {}

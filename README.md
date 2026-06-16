@@ -34,6 +34,7 @@ The intended monitoring split is:
 - [Versioning And Updates](#versioning-and-updates)
 - [Installation](#installation)
 - [systemd](#systemd)
+- [Journal Logs](#journal-logs)
 - [Secrets](#secrets)
 - [Architecture And Check Development](#architecture-and-check-development)
 
@@ -605,6 +606,25 @@ Unit=service-check.service
 
 [Install]
 WantedBy=timers.target
+```
+
+## Journal Logs
+
+systemd captures stdout and Python logging from each oneshot run. Useful entries
+include:
+
+- `run_start` / `run_end`: selected mode, enabled checks, state file, final status, exit code, and duration.
+- `config_loaded`: main config and drop-in files used by the run.
+- `checks_selected`: due or explicitly selected sections.
+- `check_retry`: retry attempts before a final result.
+- `check_result`: section, check type, status, duration, consecutive failures, notification decision, Kuma decision, and rendered message.
+- `state_load` / `state_save`: state file path and tracked check count.
+
+The runner does not log full notification commands or Kuma push URLs because
+they may contain secrets. Inspect recent logs with:
+
+```bash
+sudo journalctl -u service-check.service -n 50 --no-pager
 ```
 
 ## Secrets
