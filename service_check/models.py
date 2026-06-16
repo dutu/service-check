@@ -53,6 +53,8 @@ class GlobalConfig:
     hostname: str
     state_file: str
     lock_file: str
+    max_run_seconds: float
+    max_lock_hold_minutes: float
 
 
 @dataclass(frozen=True)

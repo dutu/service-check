@@ -12,7 +12,7 @@ from service_check.models import CheckConfig, CheckDefaults, GlobalConfig, Loade
 
 DEFAULT_CONFIG_PATH = "/etc/service-check/service-check.ini"
 LOGGER = logging.getLogger(__name__)
-GLOBAL_KEYS = {"hostname", "state_file", "lock_file"}
+GLOBAL_KEYS = {"hostname", "state_file", "lock_file", "max_run_seconds", "max_lock_hold_minutes"}
 DEFAULT_KEYS = {
     "notify_cmd",
     "interval_minutes",
@@ -58,7 +58,14 @@ REQUIRED_CHECK_KEYS = {
 }
 BOOL_KEYS = {"enabled", "notify_on_recovery", "notify_on_warn", "notify_on_first_success"}
 INT_KEYS = {"retries", "fail_after", "port"}
-FLOAT_KEYS = {"interval_minutes", "timeout_seconds", "retry_delay_seconds", "notify_repeat_after_minutes"}
+FLOAT_KEYS = {
+    "interval_minutes",
+    "timeout_seconds",
+    "retry_delay_seconds",
+    "notify_repeat_after_minutes",
+    "max_run_seconds",
+    "max_lock_hold_minutes",
+}
 
 
 def load_config(path: str, config_dir: str | None = None) -> LoadedConfig:
@@ -70,11 +77,15 @@ def load_config(path: str, config_dir: str | None = None) -> LoadedConfig:
     hostname = _get(global_section, "hostname", socket.gethostname())
     state_file = _get(global_section, "state_file", "/var/lib/service-check/state.json")
     lock_file = _get(global_section, "lock_file", f"{state_file}.lock")
+    max_run_seconds = float(_get(global_section, "max_run_seconds", "50"))
+    max_lock_hold_minutes = float(_get(global_section, "max_lock_hold_minutes", "2"))
 
     global_config = GlobalConfig(
         hostname=hostname,
         state_file=state_file,
         lock_file=lock_file,
+        max_run_seconds=max_run_seconds,
+        max_lock_hold_minutes=max_lock_hold_minutes,
     )
     defaults = CheckDefaults(
         notify_cmd=_get_optional(default_section, "notify_cmd"),
@@ -147,6 +158,8 @@ def render_effective_config(loaded: LoadedConfig) -> str:
         f"hostname={loaded.global_config.hostname}",
         f"state_file={loaded.global_config.state_file}",
         f"lock_file={loaded.global_config.lock_file}",
+        f"max_run_seconds={_format_number(loaded.global_config.max_run_seconds)}",
+        f"max_lock_hold_minutes={_format_number(loaded.global_config.max_lock_hold_minutes)}",
         "",
         "[default]",
         *_render_options(_defaults_as_options(loaded.defaults)),

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
@@ -15,16 +16,17 @@ LOGGER = logging.getLogger(__name__)
 
 
 class StateStore:
-    def __init__(self, state_file: str, lock_file: str) -> None:
+    def __init__(self, state_file: str, lock_file: str, lock_timeout_seconds: float | None = None) -> None:
         self.state_file = state_file
         self.lock_file = lock_file
+        self.lock_timeout_seconds = lock_timeout_seconds
 
     @contextmanager
     def locked(self, save: bool = True) -> Iterator[dict[str, Any]]:
         ensure_parent_dir(self.state_file)
         ensure_parent_dir(self.lock_file)
         with open(self.lock_file, "a+", encoding="utf-8") as lock_handle:
-            _lock_file(lock_handle)
+            _lock_file(lock_handle, self.lock_timeout_seconds)
             try:
                 state = self.load()
                 yield state
@@ -66,17 +68,32 @@ def _default_state() -> dict[str, Any]:
     }
 
 
-def _lock_file(handle: Any) -> None:
+def _lock_file(handle: Any, timeout_seconds: float | None) -> None:
+    started = time.monotonic()
     if os.name == "nt":
         import msvcrt
 
-        handle.seek(0)
-        msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+        while True:
+            try:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                return
+            except OSError as exc:
+                if _lock_timeout_expired(started, timeout_seconds):
+                    raise TimeoutError(f"timed out acquiring lock {handle.name}") from exc
+                time.sleep(0.2)
         return
 
     import fcntl
 
-    fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    while True:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except BlockingIOError as exc:
+            if _lock_timeout_expired(started, timeout_seconds):
+                raise TimeoutError(f"timed out acquiring lock {handle.name}") from exc
+            time.sleep(0.2)
 
 
 def _unlock_file(handle: Any) -> None:
@@ -90,3 +107,9 @@ def _unlock_file(handle: Any) -> None:
     import fcntl
 
     fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _lock_timeout_expired(started: float, timeout_seconds: float | None) -> bool:
+    if timeout_seconds is None or timeout_seconds <= 0:
+        return False
+    return (time.monotonic() - started) >= timeout_seconds

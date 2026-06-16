@@ -194,10 +194,14 @@ and `checks` keys. `checks` is keyed by section name and stores `last_run_at`
 for each section. The runner takes a state-file lock while running checks and
 writing state.
 
-Normal runs hold the lock for the full check cycle, including retries. If a
-second `service-check` process starts while another run is active, it waits for
-the lock, reloads state after the first run saves, and skips checks that are no
-longer due. `--dry-run` does not take the lock or save state.
+Normal runs hold the lock while checks execute, including retries. Due checks
+are sorted by oldest `last_run_at`, so a slow early section cannot permanently
+starve later sections. State is saved after each completed check, so progress is
+checkpointed even when `max_run_seconds` stops the current run before all due
+checks finish. If a second `service-check` process starts while another run is
+active, it waits up to `max_lock_hold_minutes` for the lock, reloads state after
+the first run saves, and skips checks that are no longer due. `--dry-run` does
+not take the lock or save state.
 
 ## Configuration
 
@@ -268,6 +272,8 @@ Common global keys:
 | `hostname` | Name included in notifications and Kuma messages. Defaults to the machine hostname. |
 | `state_file` | JSON state path. Defaults to `/var/lib/service-check/state.json`. |
 | `lock_file` | Lock path. Defaults to `state_file` plus `.lock`. |
+| `max_run_seconds` | Maximum time budget for one runner invocation before starting another check. Defaults to `50`; `0` disables the budget. |
+| `max_lock_hold_minutes` | Maximum time to wait for another runner process to release the state lock. Defaults to `2`; `0` waits indefinitely. |
 
 Common default keys in `[default]`:
 

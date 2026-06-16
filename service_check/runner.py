@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 
 from service_check.checks import get_check
 from service_check.kuma import push_kuma
@@ -32,7 +32,11 @@ def run(
         no_notify,
         loaded.global_config.state_file,
     )
-    store = StateStore(loaded.global_config.state_file, loaded.global_config.lock_file)
+    store = StateStore(
+        loaded.global_config.state_file,
+        loaded.global_config.lock_file,
+        lock_timeout_seconds=loaded.global_config.max_lock_hold_minutes * 60,
+    )
     worst_status = OK
     if dry_run:
         state = store.load()
@@ -53,9 +57,11 @@ def run(
             defaults=loaded.defaults,
             dry_run=dry_run,
             no_notify=no_notify,
+            max_run_seconds=loaded.global_config.max_run_seconds,
+            save_state=None,
         )
     else:
-        with store.locked() as state:
+        with store.locked(save=False) as state:
             selected = select_checks(
                 loaded.checks,
                 checks_state=state.setdefault("checks", {}),
@@ -73,6 +79,8 @@ def run(
                 defaults=loaded.defaults,
                 dry_run=dry_run,
                 no_notify=no_notify,
+                max_run_seconds=loaded.global_config.max_run_seconds,
+                save_state=lambda: store.save(state),
             )
 
     exit_code = 1 if worst_status in {CRIT, UNKNOWN} else 0
@@ -92,9 +100,20 @@ def process_selected_checks(
     checks_state: dict[str, Any],
     dry_run: bool,
     no_notify: bool,
+    max_run_seconds: float,
+    save_state: Callable[[], None] | None,
 ) -> str:
+    run_started = time.monotonic()
     worst_status = OK
-    for check_config in selected:
+    for index, check_config in enumerate(selected):
+        if index > 0 and _budget_exhausted(run_started, max_run_seconds):
+            LOGGER.info(
+                "run_budget_exhausted max_run_seconds=%s processed=%d remaining=%d",
+                _format_number(max_run_seconds),
+                index,
+                len(selected) - index,
+            )
+            break
         started = time.monotonic()
         result = run_check_with_retries(check_config, defaults)
         duration_ms = _elapsed_ms(started)
@@ -110,6 +129,8 @@ def process_selected_checks(
             no_notify=no_notify,
             duration_ms=duration_ms,
         )
+        if save_state:
+            save_state()
         print(f"{check_config.section}: {result.status} - {result.message}")
     return worst_status
 
@@ -124,9 +145,14 @@ def select_checks(
     if check_section:
         return [check for check in checks if check.section == check_section]
     if run_all:
-        return checks
+        return sorted(checks, key=lambda check: _last_run_sort_key(check, checks_state))
     now = datetime.now(timezone.utc)
-    return [check for check in checks if is_due(check, checks_state.get(check.section, {}), defaults, now)]
+    due_checks = [
+        check
+        for check in checks
+        if is_due(check, checks_state.get(check.section, {}), defaults, now)
+    ]
+    return sorted(due_checks, key=lambda check: _last_run_sort_key(check, checks_state))
 
 
 def handle_no_checks(check_section: str | None) -> int:
@@ -423,6 +449,24 @@ def _elapsed_ms(started: float) -> int:
 
 def _format_sections(checks: list[CheckConfig]) -> str:
     return ",".join(check.section for check in checks)
+
+
+def _budget_exhausted(started: float, max_run_seconds: float) -> bool:
+    return max_run_seconds > 0 and (time.monotonic() - started) >= max_run_seconds
+
+
+def _last_run_sort_key(check_config: CheckConfig, checks_state: dict[str, Any]) -> tuple[datetime, str]:
+    previous = checks_state.get(check_config.section, {})
+    last_run_at = previous.get("last_run_at") if isinstance(previous, dict) else None
+    if not last_run_at:
+        return datetime.min.replace(tzinfo=timezone.utc), check_config.section
+    try:
+        parsed = datetime.fromisoformat(str(last_run_at).replace("Z", "+00:00"))
+    except ValueError:
+        return datetime.min.replace(tzinfo=timezone.utc), check_config.section
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed, check_config.section
 
 
 def _truncate(value: str, limit: int = 240) -> str:
