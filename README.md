@@ -148,7 +148,7 @@ Useful CLI options:
 | `--list-scheduled` | List enabled checks, local last run time, next due time, and last status. |
 | `--validate-config` | Validate known section names, check modules, required keys, value types, and unknown keys. |
 | `--print-config` | Print the effective enabled config after defaults and drop-in overrides are applied. |
-| `--doctor` | Run config validation plus installation/runtime checks for config, state, lock, and systemd prerequisites. |
+| `--doctor` | Run config validation plus installation/runtime checks for Python, config, state, lock, and systemd prerequisites. |
 | `--dry-run` | Skip notifications and Kuma pushes. |
 | `--no-notify` | Skip local notification command execution. |
 | `--verbose` | Enable debug logging. |
@@ -527,8 +527,8 @@ systemctl list-timers --all --no-pager service-check.timer
 sudo journalctl -u service-check.service -n 20 --no-pager
 ```
 
-The doctor confirms the installed entry point version and validates
-configuration and runtime prerequisites without running checks. The dry run
+The doctor confirms the installed entry point version and validates Python,
+configuration, and runtime prerequisites without running checks. The dry run
 executes all enabled checks without sending notifications, without pushing to
 Kuma, and without writing state. The `--all --no-notify` run executes due checks
 and writes `/var/lib/service-check/state.json` without local notifications. The

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from service_check.config import discover_config_files, load_config, validate_co
 OK = "OK"
 WARN = "WARN"
 ERROR = "ERROR"
+MIN_PYTHON = (3, 11)
 
 
 @dataclass(frozen=True)
@@ -24,6 +26,7 @@ class DoctorResult:
 def run_doctor(path: str, config_dir: str | None = None) -> list[DoctorResult]:
     results = [
         DoctorResult(OK, f"service-check version: {__version__}"),
+        *_check_python_runtime(),
         *_check_config_files(path, config_dir),
         *_validate_config(path, config_dir),
     ]
@@ -69,6 +72,18 @@ def _check_config_files(path: str, config_dir: str | None) -> list[DoctorResult]
     else:
         results.append(DoctorResult(OK, f"config drop-in directory not present: {dropin_dir}"))
 
+    return results
+
+
+def _check_python_runtime() -> list[DoctorResult]:
+    version = sys.version_info
+    version_text = f"{version.major}.{version.minor}.{version.micro}"
+    minimum_text = ".".join(str(part) for part in MIN_PYTHON)
+    results = [DoctorResult(OK, f"python executable: {sys.executable}")]
+    if version >= MIN_PYTHON:
+        results.append(DoctorResult(OK, f"python version: {version_text}"))
+    else:
+        results.append(DoctorResult(ERROR, f"python version {version_text} is below required {minimum_text}"))
     return results
 
 
