@@ -7,13 +7,26 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from service_check import __version__
-from service_check.config import DEFAULT_CONFIG_PATH, load_config, render_effective_config, validate_config
+from service_check.checks import get_check_metadata
+from service_check.config import CHECK_KEYS, DEFAULT_CONFIG_PATH, load_config, render_effective_config, validate_config
 from service_check.doctor import has_errors, run_doctor
 from service_check.models import CheckConfig, CheckDefaults, LoadedConfig
 from service_check.runner import is_due, run
 from service_check.state import StateStore
 
 SCHEDULE_COLUMNS = ["SECTION", "CHECK", "INTERVAL_MIN", "LAST_RUN_AT", "NEXT_DUE_AT", "LAST_STATUS"]
+KNOWN_CHECKS = sorted(CHECK_KEYS)
+COMMON_TEMPLATE_FIELDS = {
+    "hostname": "Configured hostname.",
+    "section": "Config section name.",
+    "check": "Check module name.",
+    "interval_minutes": "Effective interval for this check.",
+    "name": "Result name, normally the section name.",
+    "status": "Result status: OK, WARN, CRIT, or UNKNOWN.",
+    "notify_level": "Syslog-style notification level derived from status.",
+    "message": "Raw check result message.",
+    "failure_count": "Consecutive problem count after this result.",
+}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -31,6 +44,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--list-scheduled", action="store_true", help="List enabled checks and their schedule state")
     parser.add_argument("--validate-config", action="store_true", help="Validate config and exit without running checks")
     parser.add_argument("--print-config", action="store_true", help="Print effective enabled config and exit")
+    parser.add_argument("--describe-check", metavar="CHECK|all", help="Describe result/template fields for a check type")
     parser.add_argument("--doctor", action="store_true", help="Validate config and installation/runtime prerequisites")
     parser.add_argument("--dry-run", action="store_true", help="Do not send notifications or Kuma pushes")
     parser.add_argument("--no-notify", action="store_true", help="Do not send local notifications")
@@ -48,6 +62,9 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
+        if args.describe_check:
+            return describe_check(args.describe_check)
+
         if args.doctor:
             results = run_doctor(args.config, args.config_dir)
             for result in results:
@@ -90,6 +107,49 @@ def resolve_selection(check_section: str | None, run_all: bool, results_for: str
     if results_for == "all":
         return None, True
     return results_for, False
+
+
+def describe_check(check_name: str) -> int:
+    names = KNOWN_CHECKS if check_name == "all" else [check_name]
+    outputs = []
+    try:
+        for name in names:
+            outputs.append(format_check_description(name, get_check_metadata(name)))
+    except KeyError as exc:
+        logging.error("%s", exc)
+        return 2
+    print("\n\n".join(outputs))
+    return 0
+
+
+def format_check_description(check_name: str, metadata: dict[str, Any]) -> str:
+    lines = [
+        f"[{check_name}]",
+        str(metadata.get("description", "")),
+        "",
+        "Common template fields:",
+        *_format_key_descriptions(COMMON_TEMPLATE_FIELDS),
+        "",
+        "Result detail fields:",
+        *_format_key_descriptions(metadata.get("details", {})),
+        "  - any configured check option can also be used as a template field.",
+        "",
+        "Statuses:",
+        *_format_status_descriptions(metadata.get("statuses", {})),
+    ]
+    return "\n".join(lines).rstrip()
+
+
+def _format_key_descriptions(values: dict[str, str]) -> list[str]:
+    if not values:
+        return ["  - none"]
+    return [f"  - {{{key}}}: {description}" for key, description in values.items()]
+
+
+def _format_status_descriptions(values: dict[str, str]) -> list[str]:
+    if not values:
+        return ["  - none"]
+    return [f"  - {status}: {description}" for status, description in values.items()]
 
 
 def list_scheduled_checks(loaded: LoadedConfig, check_section: str | None = None) -> int:

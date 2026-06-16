@@ -5,6 +5,22 @@ import time
 
 from service_check.models import CRIT, OK, UNKNOWN, CheckConfig, CheckResult
 
+CHECK_METADATA = {
+    "description": "Checks whether a TCP connection can be established to a host and port.",
+    "statuses": {
+        OK: "TCP connection succeeded.",
+        CRIT: "TCP connection failed.",
+        UNKNOWN: "Required config is missing or invalid.",
+    },
+    "details": {
+        "host": "Configured hostname or IP address.",
+        "port": "Configured TCP port number.",
+        "timeout_seconds": "Connection timeout used by the check.",
+        "elapsed_ms": "Connection attempt duration in milliseconds.",
+        "error": "Socket/config error text; present on failure or invalid port.",
+    },
+}
+
 
 def run(config: CheckConfig) -> CheckResult:
     host = config.get("host")

@@ -9,6 +9,22 @@ from service_check import __version__
 from service_check.models import OK, UNKNOWN, WARN, CheckConfig, CheckResult
 
 DEFAULT_REPOSITORY = "dutu/service-check"
+CHECK_METADATA = {
+    "description": "Compares the installed service-check version with a GitHub release or expected version.",
+    "statuses": {
+        OK: "Installed version matches the expected/latest version.",
+        WARN: "Installed version differs from the expected/latest version.",
+        UNKNOWN: "Version config is invalid or latest release could not be fetched.",
+    },
+    "details": {
+        "current_version": "Installed or configured current version.",
+        "expected_version": "Expected/latest version used for comparison.",
+        "latest_version": "Latest version resolved from config or GitHub.",
+        "available_version": "Alias for latest_version for notification templates.",
+        "repository": "GitHub repository in owner/name form.",
+        "error": "Validation/fetch/parse error text; present on UNKNOWN results.",
+    },
+}
 
 
 def run(config: CheckConfig) -> CheckResult:
