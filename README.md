@@ -69,9 +69,7 @@ The current package includes:
 - JSON state tracking
 - local notification command execution
 - optional per-check Uptime Kuma push
-- implemented checks:
-  - [`github_release_update`](service_check/checks/github_release_update/README.md)
-  - [`tcp_port`](service_check/checks/tcp_port/README.md)
+- implemented checks live under [`service_check/checks`](service_check/checks)
 
 ## Usage
 
@@ -389,8 +387,8 @@ Implemented checks:
 
 | Check | Documentation | Purpose |
 | --- | --- | --- |
-| `github_release_update` | [`service_check/checks/github_release_update/README.md`](service_check/checks/github_release_update/README.md) | Verify whether a newer `service-check` release is available. |
-| `tcp_port` | [`service_check/checks/tcp_port/README.md`](service_check/checks/tcp_port/README.md) | Verify a TCP port accepts connections. |
+| `github_release_update` | `service_check/checks` | Verify whether a newer `service-check` release is available. |
+| `tcp_port` | `service_check/checks` | Verify a TCP port accepts connections. |
 
 Each check directory owns its own README and example config. Check docs cover
 required config keys, optional config keys, returned template placeholders, and
@@ -665,6 +663,5 @@ Internal design and extension rules live in [ARCHITECTURE.md](ARCHITECTURE.md).
 For new checks, follow the boundary documented in
 [ARCHITECTURE.md#extension-rules](ARCHITECTURE.md#extension-rules): INI config
 decides what to check and with which thresholds; Python code decides how the
-service is interrogated and interpreted. Use
-[`service_check/checks/tcp_port`](service_check/checks/tcp_port) as the
-reference model for new check modules.
+service is interrogated and interpreted. Use `service_check/checks/tcp_port` as
+the reference model for new check modules.
