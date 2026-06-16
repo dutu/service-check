@@ -516,6 +516,7 @@ Post-install check:
 
 ```bash
 service-check --version
+sudo service-check --config /etc/service-check/service-check.ini --doctor
 sudo service-check --config /etc/service-check/service-check.ini --all --dry-run
 sudo service-check --config /etc/service-check/service-check.ini --all --no-notify
 sudo test -f /var/lib/service-check/state.json
@@ -526,14 +527,14 @@ systemctl list-timers --all --no-pager service-check.timer
 sudo journalctl -u service-check.service -n 20 --no-pager
 ```
 
-The version command confirms the installed entry point. The dry run validates
-configuration and executes all enabled checks without sending notifications,
-without pushing to Kuma, and without writing state. The `--all --no-notify` run
-executes due checks and writes `/var/lib/service-check/state.json` without local
-notifications. The systemd commands confirm that the timer is enabled, active,
-and scheduled. The service is `oneshot`, so it is normally inactive between
-timer runs; use `journalctl` to inspect recent run output after the timer has
-fired.
+The version command confirms the installed entry point. The doctor validates
+configuration and runtime prerequisites without running checks. The dry run
+executes all enabled checks without sending notifications, without pushing to
+Kuma, and without writing state. The `--all --no-notify` run executes due checks
+and writes `/var/lib/service-check/state.json` without local notifications. The
+systemd commands confirm that the timer is enabled, active, and scheduled. The
+service is `oneshot`, so it is normally inactive between timer runs; use
+`journalctl` to inspect recent run output after the timer has fired.
 
 The current package install provides the `service-check` command from
 `pyproject.toml` inside `/opt/service-check-venv`, and the installer links it to
@@ -559,6 +560,7 @@ cd /opt/service-check-src
 sudo git pull --ff-only
 sudo bash install.sh
 service-check --version
+sudo service-check --config /etc/service-check/service-check.ini --doctor
 ```
 
 The update flow does not overwrite files in `/etc/service-check`, so existing
