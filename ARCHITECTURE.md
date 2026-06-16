@@ -205,12 +205,20 @@ Example shape:
 {
   "checks": {
     "monerod": {
-      "last_status": "CRIT",
+      "last_result": {
+        "name": "monerod",
+        "status": "CRIT",
+        "message": "Monero daemon is unhealthy or not synced",
+        "details": {
+          "height": 3200000,
+          "target_height": 3200100,
+          "height_lag": 100
+        }
+      },
       "consecutive_failures": 4,
-      "first_failure_at": "2026-06-14T18:25:00Z",
       "last_seen_at": "2026-06-14T18:40:00Z",
       "last_notification_at": "2026-06-14T18:30:00Z",
-      "last_message": "Monero daemon is unhealthy or not synced"
+      "last_rendered_message": "Monero daemon unhealthy: height=3200000, target=3200100, lag=100"
     }
   }
 }

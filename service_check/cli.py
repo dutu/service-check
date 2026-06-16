@@ -100,7 +100,8 @@ def format_scheduled_check(
     last_run_at = str(previous.get("last_run_at") or "-")
     is_check_due = is_due(check_config, previous, global_config, now)
     next_due_at = "due now" if is_check_due else compute_next_due_at(last_run_at, interval_minutes)
-    last_status = str(previous.get("last_status") or "-")
+    last_result = previous.get("last_result")
+    last_status = str(last_result.get("status") if isinstance(last_result, dict) else "-")
     return [
         check_config.section,
         check_config.check,

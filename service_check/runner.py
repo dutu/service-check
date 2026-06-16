@@ -232,12 +232,11 @@ def process_result(
         LOGGER.warning("kuma push failed for %s: %s", check_config.section, kuma_error)
 
     checks_state[check_config.section] = {
-        "last_status": result.status,
+        "last_result": serialize_check_result(result),
         "last_problem": is_problem,
         "consecutive_failures": consecutive,
         "last_run_at": now,
         "last_seen_at": now,
-        "last_message": result.message,
         "last_rendered_message": message,
         "last_notification_at": now if notification_was_sent else previous.get("last_notification_at"),
         "last_success_notification_at": (
@@ -245,6 +244,14 @@ def process_result(
             if result.status == OK and notification_was_sent
             else previous.get("last_success_notification_at")
         ),
+    }
+
+
+def serialize_check_result(result: CheckResult) -> dict[str, Any]:
+    return {
+        "name": result.name,
+        "status": result.status,
+        "message": result.message,
         "details": result.details,
     }
 
