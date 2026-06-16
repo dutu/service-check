@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from service_check import __version__
-from service_check.config import DEFAULT_CONFIG_PATH, load_config
+from service_check.config import DEFAULT_CONFIG_PATH, load_config, render_effective_config, validate_config
 from service_check.models import CheckConfig, CheckDefaults, LoadedConfig
 from service_check.runner import is_due, run
 from service_check.state import StateStore
@@ -28,6 +28,8 @@ def main(argv: list[str] | None = None) -> int:
         help="Show results for one enabled section, or all enabled sections with 'all'",
     )
     parser.add_argument("--list-scheduled", action="store_true", help="List enabled checks and their schedule state")
+    parser.add_argument("--validate-config", action="store_true", help="Validate config and exit without running checks")
+    parser.add_argument("--print-config", action="store_true", help="Print effective enabled config and exit")
     parser.add_argument("--dry-run", action="store_true", help="Do not send notifications or Kuma pushes")
     parser.add_argument("--no-notify", action="store_true", help="Do not send local notifications")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
@@ -44,7 +46,21 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
+        if args.validate_config or args.print_config:
+            issues = validate_config(args.config, args.config_dir)
+            if issues:
+                for issue in issues:
+                    logging.error("%s", issue)
+                return 2
+            if args.validate_config and not args.print_config:
+                logging.info("configuration OK")
+                return 0
+
         loaded = load_config(args.config, args.config_dir)
+        if args.print_config:
+            print(render_effective_config(loaded))
+            return 0
+
         check_section, run_all = resolve_selection(args.check_section, args.all, args.results_for)
         if args.list_scheduled:
             return list_scheduled_checks(loaded, check_section)

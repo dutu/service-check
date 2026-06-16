@@ -111,6 +111,19 @@ List enabled checks and their schedule state without running them:
 python -m service_check.cli --config examples/service-check.ini --list-scheduled
 ```
 
+Validate the merged config without running checks:
+
+```bash
+python -m service_check.cli --config examples/service-check.ini --validate-config
+```
+
+Print the effective config after drop-ins, defaults, overrides, and disabled
+sections are applied:
+
+```bash
+python -m service_check.cli --config examples/service-check.ini --print-config
+```
+
 Show the installed version:
 
 ```bash
@@ -127,6 +140,8 @@ Useful CLI options:
 | `--check SECTION` | Run one enabled section regardless of interval. |
 | `--results-for SECTION\|all` | Run one enabled section, or all enabled sections with `all`, regardless of interval. |
 | `--list-scheduled` | List enabled checks, local last run time, next due time, and last status. |
+| `--validate-config` | Validate known section names, check modules, required keys, value types, and unknown keys. |
+| `--print-config` | Print the effective enabled config after defaults and drop-in overrides are applied. |
 | `--dry-run` | Skip notifications and Kuma pushes. |
 | `--no-notify` | Skip local notification command execution. |
 | `--verbose` | Enable debug logging. |
