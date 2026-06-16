@@ -473,6 +473,7 @@ Installer flow:
 sudo git clone https://github.com/dutu/service-check.git /opt/service-check-src
 cd /opt/service-check-src
 sudo bash install.sh
+sudo service-check --doctor
 ```
 
 The installer performs the normal deployment flow:
@@ -516,7 +517,7 @@ Post-install check:
 
 ```bash
 service-check --version
-sudo service-check --config /etc/service-check/service-check.ini --doctor
+sudo service-check --doctor
 sudo service-check --config /etc/service-check/service-check.ini --all --dry-run
 sudo service-check --config /etc/service-check/service-check.ini --all --no-notify
 sudo test -f /var/lib/service-check/state.json
@@ -560,7 +561,7 @@ cd /opt/service-check-src
 sudo git pull --ff-only
 sudo bash install.sh
 service-check --version
-sudo service-check --config /etc/service-check/service-check.ini --doctor
+sudo service-check --doctor
 ```
 
 The update flow does not overwrite files in `/etc/service-check`, so existing
