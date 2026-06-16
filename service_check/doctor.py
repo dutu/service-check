@@ -6,6 +6,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from service_check import __version__
 from service_check.config import discover_config_files, load_config, validate_config
 
 
@@ -22,6 +23,7 @@ class DoctorResult:
 
 def run_doctor(path: str, config_dir: str | None = None) -> list[DoctorResult]:
     results = [
+        DoctorResult(OK, f"service-check version: {__version__}"),
         *_check_config_files(path, config_dir),
         *_validate_config(path, config_dir),
     ]

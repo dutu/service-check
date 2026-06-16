@@ -516,7 +516,6 @@ sudo systemctl enable --now service-check.timer
 Post-install check:
 
 ```bash
-service-check --version
 sudo service-check --doctor
 sudo service-check --config /etc/service-check/service-check.ini --all --dry-run
 sudo service-check --config /etc/service-check/service-check.ini --all --no-notify
@@ -528,7 +527,7 @@ systemctl list-timers --all --no-pager service-check.timer
 sudo journalctl -u service-check.service -n 20 --no-pager
 ```
 
-The version command confirms the installed entry point. The doctor validates
+The doctor confirms the installed entry point version and validates
 configuration and runtime prerequisites without running checks. The dry run
 executes all enabled checks without sending notifications, without pushing to
 Kuma, and without writing state. The `--all --no-notify` run executes due checks
@@ -560,7 +559,6 @@ Update flow:
 cd /opt/service-check-src
 sudo git pull --ff-only
 sudo bash install.sh
-service-check --version
 sudo service-check --doctor
 ```
 
