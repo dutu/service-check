@@ -476,7 +476,7 @@ Local version source:
 
 ```python
 # service_check/__init__.py
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 ```
 
 Release tag format:

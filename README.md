@@ -166,9 +166,10 @@ Typical intervals:
 | `5` | service sync health, WireGuard peers, HTTP JSON checks |
 | `30` | full sync checks, Electrs, update checks, less volatile services |
 
-The runner uses one shared state file keyed by section name. It stores
-`last_run_at` for each section and takes a state-file lock while running checks
-and writing state.
+The runner uses one shared state file with top-level `service_check_version`
+and `checks` keys. `checks` is keyed by section name and stores `last_run_at`
+for each section. The runner takes a state-file lock while running checks and
+writing state.
 
 Normal runs hold the lock for the full check cycle, including retries. If a
 second `service-check` process starts while another run is active, it waits for
@@ -411,7 +412,8 @@ service-check --version
 ```
 
 The Python package version is stored in `service_check/__init__.py` and
-`pyproject.toml`.
+`pyproject.toml`. The current version is also written to the state file as
+`service_check_version` whenever state is saved.
 
 Release notes are published through GitHub Releases when a stable release is
 prepared and the package version is bumped.

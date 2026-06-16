@@ -6,7 +6,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
 
+from service_check import __version__
 from service_check.config import ensure_parent_dir
+
+STATE_VERSION_KEY = "service_check_version"
 
 
 class StateStore:
@@ -31,21 +34,30 @@ class StateStore:
     def load(self) -> dict[str, Any]:
         path = Path(self.state_file)
         if not path.exists():
-            return {"checks": {}}
+            return _default_state()
         with path.open("r", encoding="utf-8") as handle:
             data = json.load(handle)
         if not isinstance(data, dict):
-            return {"checks": {}}
+            return _default_state()
+        data[STATE_VERSION_KEY] = __version__
         data.setdefault("checks", {})
         return data
 
     def save(self, state: dict[str, Any]) -> None:
         ensure_parent_dir(self.state_file)
+        state[STATE_VERSION_KEY] = __version__
         tmp_path = f"{self.state_file}.tmp"
         with open(tmp_path, "w", encoding="utf-8") as handle:
             json.dump(state, handle, indent=2, sort_keys=True)
             handle.write("\n")
         os.replace(tmp_path, self.state_file)
+
+
+def _default_state() -> dict[str, Any]:
+    return {
+        STATE_VERSION_KEY: __version__,
+        "checks": {},
+    }
 
 
 def _lock_file(handle: Any) -> None:
