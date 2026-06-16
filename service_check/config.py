@@ -117,6 +117,7 @@ def validate_config(path: str, config_dir: str | None = None) -> list[str]:
     for section, allowed_keys in (("global", GLOBAL_KEYS), ("default", DEFAULT_KEYS)):
         if parser.has_section(section):
             issues.extend(_unknown_key_issues(section, parser[section], allowed_keys))
+            issues.extend(_typed_value_issues(section, parser[section]))
 
     for section in parser.sections():
         if section in {"global", "default"}:

@@ -8,6 +8,7 @@ from typing import Any
 
 from service_check import __version__
 from service_check.config import DEFAULT_CONFIG_PATH, load_config, render_effective_config, validate_config
+from service_check.doctor import has_errors, run_doctor
 from service_check.models import CheckConfig, CheckDefaults, LoadedConfig
 from service_check.runner import is_due, run
 from service_check.state import StateStore
@@ -30,6 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--list-scheduled", action="store_true", help="List enabled checks and their schedule state")
     parser.add_argument("--validate-config", action="store_true", help="Validate config and exit without running checks")
     parser.add_argument("--print-config", action="store_true", help="Print effective enabled config and exit")
+    parser.add_argument("--doctor", action="store_true", help="Validate config and installation/runtime prerequisites")
     parser.add_argument("--dry-run", action="store_true", help="Do not send notifications or Kuma pushes")
     parser.add_argument("--no-notify", action="store_true", help="Do not send local notifications")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
@@ -46,6 +48,12 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
+        if args.doctor:
+            results = run_doctor(args.config, args.config_dir)
+            for result in results:
+                print(f"{result.status}: {result.message}")
+            return 2 if has_errors(results) else 0
+
         if args.validate_config or args.print_config:
             issues = validate_config(args.config, args.config_dir)
             if issues:

@@ -124,6 +124,12 @@ sections are applied:
 python -m service_check.cli --config examples/service-check.ini --print-config
 ```
 
+Run installation/runtime diagnostics without running checks:
+
+```bash
+python -m service_check.cli --config examples/service-check.ini --doctor
+```
+
 Show the installed version:
 
 ```bash
@@ -142,6 +148,7 @@ Useful CLI options:
 | `--list-scheduled` | List enabled checks, local last run time, next due time, and last status. |
 | `--validate-config` | Validate known section names, check modules, required keys, value types, and unknown keys. |
 | `--print-config` | Print the effective enabled config after defaults and drop-in overrides are applied. |
+| `--doctor` | Run config validation plus installation/runtime checks for config, state, lock, and systemd prerequisites. |
 | `--dry-run` | Skip notifications and Kuma pushes. |
 | `--no-notify` | Skip local notification command execution. |
 | `--verbose` | Enable debug logging. |
