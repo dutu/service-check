@@ -280,6 +280,29 @@ def run(config: CheckConfig) -> CheckResult:
     ...
 ```
 
+Each check module also exposes static metadata for config authors:
+
+```python
+CHECK_METADATA = {
+    "description": "...",
+    "statuses": {
+        OK: "...",
+        CRIT: "...",
+        UNKNOWN: "...",
+    },
+    "details": {
+        "detail_key": "Description for message templates.",
+    },
+}
+```
+
+The CLI uses `CHECK_METADATA` for:
+
+```bash
+service-check --describe-check tcp_port
+service-check --describe-check all
+```
+
 The INI references the stable module name:
 
 ```ini
@@ -295,9 +318,20 @@ Adding a new check requires:
 
 - adding a new `service_check/checks/<check_name>/` directory
 - adding `check.py` with `run(config)`
+- adding `CHECK_METADATA` to `check.py`
 - adding a module `README.md`
 - adding a module `example.ini`
 - documenting returned `details` keys for message placeholders
+
+Use `service_check/checks/tcp_port/` as the reference implementation for a
+small, well-structured check. It shows the expected boundaries:
+
+- read only the check-specific config keys it owns
+- return `UNKNOWN` for missing or invalid config
+- return `OK`/`CRIT` for the service health decision
+- include result `details` that are useful in message templates
+- document those `details` both in `CHECK_METADATA` and the module README
+- keep notification, state, retry, and scheduling behavior out of the check
 
 ## Result Contract
 
@@ -630,10 +664,12 @@ For `bitcoind_sync`, useful health criteria are:
 
 When adding checks:
 
+- start from `service_check/checks/tcp_port/` as the reference model
 - keep check logic service-specific and explicit
 - keep config inputs minimal
 - avoid making generic expression languages or no-code rule systems
 - return the standard result shape
+- expose `CHECK_METADATA` for `--describe-check`
 - add example config
 - document required local dependencies
 

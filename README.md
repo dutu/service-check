@@ -665,4 +665,6 @@ Internal design and extension rules live in [ARCHITECTURE.md](ARCHITECTURE.md).
 For new checks, follow the boundary documented in
 [ARCHITECTURE.md#extension-rules](ARCHITECTURE.md#extension-rules): INI config
 decides what to check and with which thresholds; Python code decides how the
-service is interrogated and interpreted.
+service is interrogated and interpreted. Use
+[`service_check/checks/tcp_port`](service_check/checks/tcp_port) as the
+reference model for new check modules.
