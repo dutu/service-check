@@ -67,23 +67,23 @@ decides which checks are due.
 
 The runner does not implement a resident scheduler.
 
-Use one shared INI config with `interval_seconds` per check section:
+Use one shared INI config with `interval_minutes` per check section:
 
 ```ini
 [monerod]
 enabled=1
 check=monerod_sync
-interval_seconds=300
+interval_minutes=5
 
 [monero_wallet_rpc]
 enabled=1
 check=monero_wallet_rpc
-interval_seconds=60
+interval_minutes=1
 
 [bitcoind]
 enabled=1
 check=bitcoind_sync
-interval_seconds=1800
+interval_minutes=30
 ```
 
 The single systemd timer runs every minute:
@@ -95,11 +95,11 @@ service-check.timer -> service-check.service -> service-check
 A check is due when:
 
 ```text
-now - last_run_at >= interval_seconds
+now - last_run_at >= interval_minutes * 60
 ```
 
-The config layer defaults missing `interval_seconds` values to
-`[default] interval_seconds`, or to `300` when no default is configured.
+The config layer defaults missing `interval_minutes` values to
+`[default] interval_minutes`, or to `5` when no default is configured.
 
 The runner takes a lock around selection, execution, state updates, and
 notification decisions. The state file remains shared because state keys are
@@ -286,7 +286,7 @@ The INI references the stable module name:
 [electrs_tcp]
 enabled=1
 check=tcp_port
-interval_seconds=60
+interval_minutes=1
 host=127.0.0.1
 port=50001
 ```
@@ -521,7 +521,7 @@ Example config:
 ```ini
 [github_release_update]
 enabled=1
-interval_seconds=86400
+interval_minutes=1440
 check=github_release_update
 repository=dutu/service-check
 fail_after=1

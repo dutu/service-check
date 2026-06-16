@@ -58,7 +58,7 @@ class GlobalConfig:
 @dataclass(frozen=True)
 class CheckDefaults:
     notify_cmd: str | None
-    interval_seconds: float
+    interval_minutes: float
     timeout_seconds: float
     retries: int
     retry_delay_seconds: float

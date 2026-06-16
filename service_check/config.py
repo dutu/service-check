@@ -34,7 +34,7 @@ def load_config(path: str, config_dir: str | None = None) -> LoadedConfig:
     )
     defaults = CheckDefaults(
         notify_cmd=_get_optional(default_section, "notify_cmd"),
-        interval_seconds=float(_get(default_section, "interval_seconds", "300")),
+        interval_minutes=float(_get(default_section, "interval_minutes", "5")),
         timeout_seconds=float(_get(default_section, "timeout_seconds", "5")),
         retries=int(_get(default_section, "retries", "0")),
         retry_delay_seconds=float(_get(default_section, "retry_delay_seconds", "1")),

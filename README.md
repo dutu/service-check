@@ -86,13 +86,13 @@ Run with a main config and drop-in directory:
 python -m service_check.cli --config examples/service-check.ini --dry-run
 ```
 
-Run all enabled checks, ignoring `interval_seconds`:
+Run all enabled checks, ignoring `interval_minutes`:
 
 ```bash
 python -m service_check.cli --config examples/service-check.ini --all --dry-run
 ```
 
-Run one enabled section, ignoring `interval_seconds`:
+Run one enabled section, ignoring `interval_minutes`:
 
 ```bash
 python -m service_check.cli --config examples/service-check.ini --check github_release_update --dry-run
@@ -141,13 +141,13 @@ without relying on any local TCP service.
 Use one config file and one systemd timer.
 
 The systemd timer runs once per minute. Each check section defines its own
-`interval_seconds` value:
+`interval_minutes` value:
 
 ```ini
 [electrs_tcp]
 enabled=1
 check=tcp_port
-interval_seconds=60
+interval_minutes=1
 host=127.0.0.1
 port=50001
 ```
@@ -155,7 +155,7 @@ port=50001
 The runner decides whether each check is due from state:
 
 ```text
-now - last_run_at >= interval_seconds
+now - last_run_at >= interval_minutes * 60
 ```
 
 Typical intervals:
@@ -217,7 +217,7 @@ state_file=/var/lib/service-check/state.json
 
 [default]
 notify_cmd=/usr/local/bin/telegram-notify infra
-interval_seconds=300
+interval_minutes=5
 timeout_seconds=5
 retries=2
 retry_delay_seconds=5
@@ -228,7 +228,7 @@ notify_on_recovery=1
 [electrs_tcp]
 enabled=1
 check=tcp_port
-interval_seconds=60
+interval_minutes=1
 host=127.0.0.1
 port=50001
 timeout_seconds=2
@@ -251,7 +251,7 @@ Common default keys in `[default]`:
 | Key | Purpose |
 | --- | --- |
 | `notify_cmd` | Local command used to send alerts. |
-| `interval_seconds` | Interval used when a check section omits `interval_seconds`. Defaults to `300`. |
+| `interval_minutes` | Interval used when a check section omits `interval_minutes`. Defaults to `5`. |
 | `timeout_seconds` | Default network timeout in seconds. Defaults to `5`. |
 | `retries` | Immediate retries inside one watchdog run. Defaults to `0`. |
 | `retry_delay_seconds` | Delay in seconds between immediate retries. Defaults to `1`. |
@@ -261,7 +261,7 @@ Common default keys in `[default]`:
 
 Per-check sections may define or override `[default]` keys plus:
 
-- `interval_seconds`
+- `interval_minutes`
 - `timeout_seconds`
 - `retries`
 - `retry_delay_seconds`
@@ -554,7 +554,7 @@ sudo cp -n examples/service-check.ini.d/10-version.ini /etc/service-check/servic
 ## systemd
 
 Use one service and one timer. The timer runs once per minute; the runner decides
-which checks are due from each section's `interval_seconds` and `last_run_at`.
+which checks are due from each section's `interval_minutes` and `last_run_at`.
 
 `service-check.service`:
 

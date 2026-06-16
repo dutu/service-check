@@ -125,8 +125,8 @@ def is_due(
     if not last_run_at:
         return True
 
-    interval_seconds = check_config.get_float("interval_seconds", defaults.interval_seconds)
-    if interval_seconds <= 0:
+    interval_minutes = check_config.get_float("interval_minutes", defaults.interval_minutes)
+    if interval_minutes <= 0:
         return True
 
     try:
@@ -134,7 +134,7 @@ def is_due(
     except ValueError:
         return True
 
-    return (now - previous_run).total_seconds() >= interval_seconds
+    return (now - previous_run).total_seconds() >= interval_minutes * 60
 
 
 def run_check_with_retries(check_config: CheckConfig, defaults: CheckDefaults) -> CheckResult:
@@ -285,7 +285,7 @@ def build_message_context(
         "hostname": global_config.hostname,
         "section": check_config.section,
         "check": check_config.check,
-        "interval_seconds": check_config.get_float("interval_seconds", defaults.interval_seconds),
+        "interval_minutes": check_config.get_float("interval_minutes", defaults.interval_minutes),
         "name": result.name,
         "status": result.status,
         "notify_level": get_notify_level(result.status, is_recovery=result.status == OK and was_problem),
