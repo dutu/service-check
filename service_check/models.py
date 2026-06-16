@@ -59,10 +59,10 @@ class GlobalConfig:
 
 @dataclass(frozen=True)
 class CheckDefaults:
-    interval_minutes: float
-    timeout: float
+    interval_seconds: float
+    timeout_seconds: float
     retries: int
-    retry_delay: float
+    retry_delay_seconds: float
     fail_after: int
     notify_repeat_after_minutes: float
 

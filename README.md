@@ -86,13 +86,13 @@ Run with a main config and drop-in directory:
 python -m service_check.cli --config examples/service-check.ini --dry-run
 ```
 
-Run all enabled checks, ignoring `interval_minutes`:
+Run all enabled checks, ignoring `interval_seconds`:
 
 ```bash
 python -m service_check.cli --config examples/service-check.ini --all --dry-run
 ```
 
-Run one enabled section, ignoring `interval_minutes`:
+Run one enabled section, ignoring `interval_seconds`:
 
 ```bash
 python -m service_check.cli --config examples/service-check.ini --check github_release_update --dry-run
@@ -141,13 +141,13 @@ without relying on any local TCP service.
 Use one config file and one systemd timer.
 
 The systemd timer runs once per minute. Each check section defines its own
-`interval_minutes` value:
+`interval_seconds` value:
 
 ```ini
 [electrs_tcp]
 enabled=1
 check=tcp_port
-interval_minutes=1
+interval_seconds=60
 host=127.0.0.1
 port=50001
 ```
@@ -155,7 +155,7 @@ port=50001
 The runner decides whether each check is due from state:
 
 ```text
-now - last_run_at >= interval_minutes
+now - last_run_at >= interval_seconds
 ```
 
 Typical intervals:
@@ -218,20 +218,20 @@ notify_cmd=/usr/local/bin/telegram-notify infra
 notify_on_recovery=1
 
 [default]
-interval_minutes=5
-timeout=5
+interval_seconds=300
+timeout_seconds=5
 retries=2
-retry_delay=5
+retry_delay_seconds=5
 fail_after=3
 notify_repeat_after_minutes=60
 
 [electrs_tcp]
 enabled=1
 check=tcp_port
-interval_minutes=1
+interval_seconds=60
 host=127.0.0.1
 port=50001
-timeout=2
+timeout_seconds=2
 failure_message=Electrs TCP port {host}:{port} is down: {error}
 success_message=Electrs TCP port {host}:{port} is reachable in {elapsed_ms}ms
 ```
@@ -252,19 +252,19 @@ Common default keys in `[default]`:
 
 | Key | Purpose |
 | --- | --- |
-| `interval_minutes` | Interval used when a check section omits `interval_minutes`. Defaults to `5`. |
-| `timeout` | Default network timeout in seconds. Defaults to `5`. |
+| `interval_seconds` | Interval used when a check section omits `interval_seconds`. Defaults to `300`. |
+| `timeout_seconds` | Default network timeout in seconds. Defaults to `5`. |
 | `retries` | Immediate retries inside one watchdog run. Defaults to `0`. |
-| `retry_delay` | Delay in seconds between immediate retries. Defaults to `1`. |
+| `retry_delay_seconds` | Delay in seconds between immediate retries. Defaults to `1`. |
 | `fail_after` | Failed due runs required before alerting. Defaults to `1`. |
 | `notify_repeat_after_minutes` | Minutes before repeating a notification for an unresolved problem. Defaults to `60`. |
 
 Per-check sections may define or override `[default]` keys plus:
 
-- `interval_minutes`
-- `timeout`
+- `interval_seconds`
+- `timeout_seconds`
 - `retries`
-- `retry_delay`
+- `retry_delay_seconds`
 - `fail_after`
 - `notify_repeat_after_minutes`
 - `failure_message`
@@ -553,7 +553,7 @@ sudo cp -n examples/service-check.ini.d/10-version.ini /etc/service-check/servic
 ## systemd
 
 Use one service and one timer. The timer runs once per minute; the runner decides
-which checks are due from each section's `interval_minutes` and `last_run_at`.
+which checks are due from each section's `interval_seconds` and `last_run_at`.
 
 `service-check.service`:
 

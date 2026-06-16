@@ -35,10 +35,10 @@ def load_config(path: str, config_dir: str | None = None) -> LoadedConfig:
         notify_on_recovery=_get_bool(global_section, "notify_on_recovery", True),
     )
     defaults = CheckDefaults(
-        interval_minutes=float(_get(default_section, "interval_minutes", "5")),
-        timeout=float(_get(default_section, "timeout", "5")),
+        interval_seconds=float(_get(default_section, "interval_seconds", "300")),
+        timeout_seconds=float(_get(default_section, "timeout_seconds", "5")),
         retries=int(_get(default_section, "retries", "0")),
-        retry_delay=float(_get(default_section, "retry_delay", "1")),
+        retry_delay_seconds=float(_get(default_section, "retry_delay_seconds", "1")),
         fail_after=int(_get(default_section, "fail_after", "1")),
         notify_repeat_after_minutes=float(_get(default_section, "notify_repeat_after_minutes", "60")),
     )

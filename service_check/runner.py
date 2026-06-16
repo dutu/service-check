@@ -125,8 +125,8 @@ def is_due(
     if not last_run_at:
         return True
 
-    interval_minutes = check_config.get_float("interval_minutes", defaults.interval_minutes)
-    if interval_minutes <= 0:
+    interval_seconds = check_config.get_float("interval_seconds", defaults.interval_seconds)
+    if interval_seconds <= 0:
         return True
 
     try:
@@ -134,12 +134,12 @@ def is_due(
     except ValueError:
         return True
 
-    return (now - previous_run).total_seconds() >= interval_minutes * 60
+    return (now - previous_run).total_seconds() >= interval_seconds
 
 
 def run_check_with_retries(check_config: CheckConfig, defaults: CheckDefaults) -> CheckResult:
     retries = check_config.get_int("retries", defaults.retries)
-    retry_delay = check_config.get_float("retry_delay", defaults.retry_delay)
+    retry_delay_seconds = check_config.get_float("retry_delay_seconds", defaults.retry_delay_seconds)
     attempts = retries + 1
     last_result: CheckResult | None = None
 
@@ -148,7 +148,7 @@ def run_check_with_retries(check_config: CheckConfig, defaults: CheckDefaults) -
         if last_result.status not in {CRIT, UNKNOWN}:
             return last_result
         if attempt < attempts:
-            time.sleep(retry_delay)
+            time.sleep(retry_delay_seconds)
 
     assert last_result is not None
     return last_result
@@ -158,7 +158,7 @@ def run_one_check(check_config: CheckConfig, defaults: CheckDefaults) -> CheckRe
     try:
         check_fn = get_check(check_config.check)
         merged_options = dict(check_config.options)
-        merged_options.setdefault("timeout", str(defaults.timeout))
+        merged_options.setdefault("timeout_seconds", str(defaults.timeout_seconds))
         merged_config = CheckConfig(
             section=check_config.section,
             check=check_config.check,
@@ -230,7 +230,7 @@ def process_result(
         check_config.get("kuma_push_url"),
         result.status,
         message,
-        timeout=check_config.get_float("timeout", defaults.timeout),
+        timeout=check_config.get_float("timeout_seconds", defaults.timeout_seconds),
         dry_run=dry_run,
     )
     if kuma_error:
@@ -285,7 +285,7 @@ def build_message_context(
         "hostname": global_config.hostname,
         "section": check_config.section,
         "check": check_config.check,
-        "interval_minutes": check_config.get_float("interval_minutes", defaults.interval_minutes),
+        "interval_seconds": check_config.get_float("interval_seconds", defaults.interval_seconds),
         "name": result.name,
         "status": result.status,
         "notify_level": get_notify_level(result.status, is_recovery=result.status == OK and was_problem),

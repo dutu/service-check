@@ -15,16 +15,16 @@ Optional:
 - `repository`: GitHub repository in `owner/name` form; defaults to `dutu/service-check`
 - `repo`: alias for `repository`
 - `api_url`: override GitHub latest-release API URL, primarily for tests
-- `timeout`: seconds to wait for the GitHub API request
+- `timeout_seconds`: seconds to wait for the GitHub API request
 - `expected_version`: manual available release version, with optional leading `v`;
   when set, the check uses this value instead of calling GitHub
 - `current_version`: override detected version, primarily for tests
 - `failure_message`: alert template used when the version assertion fails
 - `success_message`: message template used for OK status, recovery notifications, and Kuma OK pushes
 - `notify_on_success_once`: notify the first successful run once
-- `interval_minutes`: how often this check runs
+- `interval_seconds`: how often this check runs
 - `retries`: immediate retries before the run is considered failed
-- `retry_delay`: seconds between immediate retries
+- `retry_delay_seconds`: seconds between immediate retries
 - `fail_after`: failed runs required before local notification
 - `notify_repeat_after_minutes`: minutes before repeating a notification for an unresolved problem
 - `notify_cmd`: local notification command override for this check
@@ -60,7 +60,7 @@ The check returns these `details` keys for message templates:
 enabled=1
 check=github_release_update
 repository=dutu/service-check
-interval_minutes=1440
+interval_seconds=86400
 notify_repeat_after_minutes=1440
 notify_on_warn=1
 notify_on_success_once=1

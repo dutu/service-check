@@ -11,12 +11,12 @@ Required:
 
 Optional:
 
-- `timeout`: connection timeout in seconds, defaults to `[default] timeout`
+- `timeout_seconds`: connection timeout in seconds, defaults to `[default] timeout_seconds`
 - `failure_message`: alert template used when the port is unreachable
 - `success_message`: message template used for OK status, recovery notifications, and Kuma OK pushes
-- `interval_minutes`: how often this check runs
+- `interval_seconds`: how often this check runs
 - `retries`: immediate retries before the run is considered failed
-- `retry_delay`: seconds between immediate retries
+- `retry_delay_seconds`: seconds between immediate retries
 - `fail_after`: failed runs required before local notification
 - `notify_repeat_after_minutes`: minutes before repeating a notification for an unresolved problem
 - `notify_cmd`: local notification command override for this check
@@ -31,7 +31,7 @@ The check returns these `details` keys for message templates:
 
 - `host`
 - `port`
-- `timeout`
+- `timeout_seconds`
 - `elapsed_ms`
 - `error`, only on failure
 
@@ -41,10 +41,10 @@ The check returns these `details` keys for message templates:
 [electrs_tcp]
 enabled=1
 check=tcp_port
-interval_minutes=1
+interval_seconds=60
 host=127.0.0.1
 port=50001
-timeout=2
+timeout_seconds=2
 # notify_topic=infra
 # notify_cmd=/usr/local/bin/telegram-notify --level {notify_level} {notify_topic}
 failure_message=TCP port {host}:{port} is down: {error}

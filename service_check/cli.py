@@ -12,7 +12,7 @@ from service_check.models import CheckConfig, CheckDefaults, LoadedConfig
 from service_check.runner import is_due, run
 from service_check.state import StateStore
 
-SCHEDULE_COLUMNS = ["SECTION", "CHECK", "INTERVAL_MIN", "LAST_RUN_AT", "NEXT_DUE_AT", "LAST_STATUS"]
+SCHEDULE_COLUMNS = ["SECTION", "CHECK", "INTERVAL_SEC", "LAST_RUN_AT", "NEXT_DUE_AT", "LAST_STATUS"]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -20,7 +20,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default=DEFAULT_CONFIG_PATH, help="INI config path")
     parser.add_argument("--config-dir", help="Optional INI drop-in directory. Defaults to <config>.d")
     selection = parser.add_mutually_exclusive_group()
-    selection.add_argument("--all", action="store_true", help="Run all enabled checks, ignoring interval_minutes")
+    selection.add_argument("--all", action="store_true", help="Run all enabled checks, ignoring interval_seconds")
     selection.add_argument("--check", dest="check_section", help="Run one check section regardless of interval")
     selection.add_argument(
         "--results-for",
@@ -96,16 +96,16 @@ def format_scheduled_check(
     previous: dict[str, Any],
     now: datetime,
 ) -> str:
-    interval_minutes = check_config.get_float("interval_minutes", defaults.interval_minutes)
+    interval_seconds = check_config.get_float("interval_seconds", defaults.interval_seconds)
     last_run_at = str(previous.get("last_run_at") or "-")
     is_check_due = is_due(check_config, previous, defaults, now)
-    next_due_at = "due now" if is_check_due else compute_next_due_at(last_run_at, interval_minutes)
+    next_due_at = "due now" if is_check_due else compute_next_due_at(last_run_at, interval_seconds)
     last_result = previous.get("last_result")
     last_status = str(last_result.get("status") if isinstance(last_result, dict) else "-")
     return [
         check_config.section,
         check_config.check,
-        _format_number(interval_minutes),
+        _format_number(interval_seconds),
         format_local_time(last_run_at),
         next_due_at,
         last_status,
@@ -126,14 +126,14 @@ def _format_table_row(row: list[str], widths: list[int]) -> str:
     return "  ".join(value.ljust(widths[index]) for index, value in enumerate(row)).rstrip()
 
 
-def compute_next_due_at(last_run_at: str, interval_minutes: float) -> str:
-    if last_run_at == "-" or interval_minutes <= 0:
+def compute_next_due_at(last_run_at: str, interval_seconds: float) -> str:
+    if last_run_at == "-" or interval_seconds <= 0:
         return "-"
     try:
         previous_run = datetime.fromisoformat(last_run_at.replace("Z", "+00:00"))
     except ValueError:
         return "-"
-    return format_local_time((previous_run + timedelta(minutes=interval_minutes)).isoformat())
+    return format_local_time((previous_run + timedelta(seconds=interval_seconds)).isoformat())
 
 
 def format_local_time(value: str) -> str:

@@ -9,7 +9,7 @@ from service_check.models import CRIT, OK, UNKNOWN, CheckConfig, CheckResult
 def run(config: CheckConfig) -> CheckResult:
     host = config.get("host")
     port_value = config.get("port")
-    timeout = config.get_float("timeout", 5.0)
+    timeout_seconds = config.get_float("timeout_seconds", 5.0)
 
     if not host:
         return CheckResult(
@@ -31,7 +31,7 @@ def run(config: CheckConfig) -> CheckResult:
 
     started = time.monotonic()
     try:
-        with socket.create_connection((host, port), timeout=timeout):
+        with socket.create_connection((host, port), timeout=timeout_seconds):
             elapsed_ms = int((time.monotonic() - started) * 1000)
             return CheckResult(
                 name=config.section,
@@ -40,7 +40,7 @@ def run(config: CheckConfig) -> CheckResult:
                 details={
                     "host": host,
                     "port": port,
-                    "timeout": timeout,
+                    "timeout_seconds": timeout_seconds,
                     "elapsed_ms": elapsed_ms,
                 },
             )
@@ -53,7 +53,7 @@ def run(config: CheckConfig) -> CheckResult:
             details={
                 "host": host,
                 "port": port,
-                "timeout": timeout,
+                "timeout_seconds": timeout_seconds,
                 "elapsed_ms": elapsed_ms,
                 "error": str(exc),
             },
