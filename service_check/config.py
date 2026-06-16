@@ -22,6 +22,7 @@ DEFAULT_KEYS = {
     "fail_after",
     "notify_repeat_after_minutes",
     "notify_on_recovery",
+    "notify_on_first_success",
 }
 COMMON_CHECK_KEYS = {
     "enabled",
@@ -34,7 +35,7 @@ COMMON_CHECK_KEYS = {
     "notify_repeat_after_minutes",
     "notify_on_recovery",
     "notify_on_warn",
-    "notify_on_success_once",
+    "notify_on_first_success",
     "notify_cmd",
     "notify_topic",
     "kuma_push_url",
@@ -55,7 +56,7 @@ REQUIRED_CHECK_KEYS = {
     "tcp_port": {"host", "port"},
     "github_release_update": set(),
 }
-BOOL_KEYS = {"enabled", "notify_on_recovery", "notify_on_warn", "notify_on_success_once"}
+BOOL_KEYS = {"enabled", "notify_on_recovery", "notify_on_warn", "notify_on_first_success"}
 INT_KEYS = {"retries", "fail_after", "port"}
 FLOAT_KEYS = {"interval_minutes", "timeout_seconds", "retry_delay_seconds", "notify_repeat_after_minutes"}
 
@@ -84,6 +85,7 @@ def load_config(path: str, config_dir: str | None = None) -> LoadedConfig:
         fail_after=int(_get(default_section, "fail_after", "1")),
         notify_repeat_after_minutes=float(_get(default_section, "notify_repeat_after_minutes", "60")),
         notify_on_recovery=_get_bool(default_section, "notify_on_recovery", True),
+        notify_on_first_success=_get_bool(default_section, "notify_on_first_success", False),
     )
 
     checks: list[CheckConfig] = []
@@ -272,6 +274,7 @@ def _defaults_as_options(defaults: CheckDefaults) -> dict[str, str]:
         "fail_after": str(defaults.fail_after),
         "notify_repeat_after_minutes": _format_number(defaults.notify_repeat_after_minutes),
         "notify_on_recovery": _format_bool(defaults.notify_on_recovery),
+        "notify_on_first_success": _format_bool(defaults.notify_on_first_success),
     }
     if defaults.notify_cmd:
         options["notify_cmd"] = defaults.notify_cmd

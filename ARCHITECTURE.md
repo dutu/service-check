@@ -527,7 +527,7 @@ repository=dutu/service-check
 fail_after=1
 notify_repeat_after_minutes=1440
 notify_on_warn=1
-notify_on_success_once=1
+notify_on_first_success=1
 kuma_push_url=https://kuma.example.com/api/push/service-check-update-token
 success_message=service-check {current_version} is up-to-date
 failure_message=service-check new version available: current={current_version}, available={available_version}

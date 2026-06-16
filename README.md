@@ -295,7 +295,7 @@ Per-check sections may define or override `[default]` keys plus:
 - `notify_cmd`
 - `kuma_push_url`
 - `notify_on_warn`
-- `notify_on_success_once`
+- `notify_on_first_success`
 
 ## Message Templates
 
@@ -366,7 +366,7 @@ Alert behavior:
 | `CRIT -> OK` | Notify recovery if enabled. |
 | `CRIT -> CRIT` | Do not repeat unless `notify_repeat_after_minutes` elapsed. |
 | `OK -> WARN` | No local alert unless `notify_on_warn=1`. |
-| first `OK` | Notify once only if `notify_on_success_once=1`. |
+| first `OK` | Notify once only if `notify_on_first_success=1`. |
 
 ## Checks
 

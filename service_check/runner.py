@@ -214,7 +214,7 @@ def process_result(
         )
     elif was_problem and check_config.get_bool("notify_on_recovery", defaults.notify_on_recovery):
         should_notify = True
-    elif result.status == OK and check_config.get_bool("notify_on_success_once", False):
+    elif result.status == OK and check_config.get_bool("notify_on_first_success", defaults.notify_on_first_success):
         should_notify = not previous.get("last_success_notification_at")
 
     notification_error = None

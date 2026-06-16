@@ -21,7 +21,7 @@ Optional:
 - `current_version`: override detected version, primarily for tests
 - `failure_message`: alert template used when the version assertion fails
 - `success_message`: message template used for OK status, recovery notifications, and Kuma OK pushes
-- `notify_on_success_once`: notify the first successful run once
+- `notify_on_first_success`: notify the first successful run once
 - `interval_minutes`: how often this check runs
 - `retries`: immediate retries before the run is considered failed
 - `retry_delay_seconds`: seconds between immediate retries
@@ -63,7 +63,7 @@ repository=dutu/service-check
 interval_minutes=1440
 notify_repeat_after_minutes=1440
 notify_on_warn=1
-notify_on_success_once=1
+notify_on_first_success=1
 success_message=service-check {current_version} is up-to-date
 failure_message=service-check new version available: current={current_version}, available={available_version}
 ```

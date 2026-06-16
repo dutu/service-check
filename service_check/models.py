@@ -65,6 +65,7 @@ class CheckDefaults:
     fail_after: int
     notify_repeat_after_minutes: float
     notify_on_recovery: bool
+    notify_on_first_success: bool
 
 
 @dataclass(frozen=True)
