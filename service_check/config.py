@@ -6,7 +6,7 @@ import os
 import socket
 from pathlib import Path
 
-from service_check.models import CheckConfig, GlobalConfig, LoadedConfig
+from service_check.models import CheckConfig, CheckDefaults, GlobalConfig, LoadedConfig
 
 
 DEFAULT_CONFIG_PATH = "/etc/service-check/service-check.ini"
@@ -22,6 +22,7 @@ def load_config(path: str, config_dir: str | None = None) -> LoadedConfig:
     LOGGER.debug("loaded config files: %s", ", ".join(read_files))
 
     global_section = parser["global"] if parser.has_section("global") else {}
+    default_section = parser["default"] if parser.has_section("default") else {}
     hostname = _get(global_section, "hostname", socket.gethostname())
     state_file = _get(global_section, "state_file", "/var/lib/service-check/state.json")
     lock_file = _get(global_section, "lock_file", f"{state_file}.lock")
@@ -31,18 +32,20 @@ def load_config(path: str, config_dir: str | None = None) -> LoadedConfig:
         state_file=state_file,
         lock_file=lock_file,
         notify_cmd=_get_optional(global_section, "notify_cmd"),
-        default_interval_minutes=float(_get(global_section, "default_interval_minutes", "5")),
-        default_timeout=float(_get(global_section, "default_timeout", "5")),
-        default_retries=int(_get(global_section, "default_retries", "0")),
-        default_retry_delay=float(_get(global_section, "default_retry_delay", "1")),
-        default_fail_after=int(_get(global_section, "default_fail_after", "1")),
-        default_notify_repeat_after_minutes=float(_get(global_section, "default_notify_repeat_after_minutes", "60")),
         notify_on_recovery=_get_bool(global_section, "notify_on_recovery", True),
+    )
+    defaults = CheckDefaults(
+        interval_minutes=float(_get(default_section, "interval_minutes", "5")),
+        timeout=float(_get(default_section, "timeout", "5")),
+        retries=int(_get(default_section, "retries", "0")),
+        retry_delay=float(_get(default_section, "retry_delay", "1")),
+        fail_after=int(_get(default_section, "fail_after", "1")),
+        notify_repeat_after_minutes=float(_get(default_section, "notify_repeat_after_minutes", "60")),
     )
 
     checks: list[CheckConfig] = []
     for section in parser.sections():
-        if section == "global":
+        if section in {"global", "default"}:
             continue
         values = {key: value for key, value in parser[section].items()}
         if not _truthy(values.get("enabled", "0")):
@@ -52,7 +55,7 @@ def load_config(path: str, config_dir: str | None = None) -> LoadedConfig:
             raise ValueError(f"[{section}] is enabled but has no check= value")
         checks.append(CheckConfig(section=section, check=check_name, options=values))
 
-    return LoadedConfig(global_config=global_config, checks=checks)
+    return LoadedConfig(global_config=global_config, defaults=defaults, checks=checks)
 
 
 def discover_config_files(path: str, config_dir: str | None = None) -> list[str]:

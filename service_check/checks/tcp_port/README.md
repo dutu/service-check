@@ -11,7 +11,7 @@ Required:
 
 Optional:
 
-- `timeout`: connection timeout in seconds, defaults to `[global] default_timeout`
+- `timeout`: connection timeout in seconds, defaults to `[default] timeout`
 - `failure_message`: alert template used when the port is unreachable
 - `success_message`: message template used for OK status, recovery notifications, and Kuma OK pushes
 - `interval_minutes`: how often this check runs

@@ -8,7 +8,7 @@ from typing import Any
 
 from service_check import __version__
 from service_check.config import DEFAULT_CONFIG_PATH, load_config
-from service_check.models import CheckConfig, GlobalConfig, LoadedConfig
+from service_check.models import CheckConfig, CheckDefaults, LoadedConfig
 from service_check.runner import is_due, run
 from service_check.state import StateStore
 
@@ -85,20 +85,20 @@ def list_scheduled_checks(loaded: LoadedConfig, check_section: str | None = None
     rows = []
     for check_config in checks:
         previous = checks_state.get(check_config.section, {})
-        rows.append(format_scheduled_check(loaded.global_config, check_config, previous, now))
+        rows.append(format_scheduled_check(loaded.defaults, check_config, previous, now))
     print(format_table(SCHEDULE_COLUMNS, rows))
     return 0
 
 
 def format_scheduled_check(
-    global_config: GlobalConfig,
+    defaults: CheckDefaults,
     check_config: CheckConfig,
     previous: dict[str, Any],
     now: datetime,
 ) -> str:
-    interval_minutes = check_config.get_float("interval_minutes", global_config.default_interval_minutes)
+    interval_minutes = check_config.get_float("interval_minutes", defaults.interval_minutes)
     last_run_at = str(previous.get("last_run_at") or "-")
-    is_check_due = is_due(check_config, previous, global_config, now)
+    is_check_due = is_due(check_config, previous, defaults, now)
     next_due_at = "due now" if is_check_due else compute_next_due_at(last_run_at, interval_minutes)
     last_result = previous.get("last_result")
     last_status = str(last_result.get("status") if isinstance(last_result, dict) else "-")

@@ -99,7 +99,7 @@ now - last_run_at >= interval_minutes
 ```
 
 The config layer defaults missing `interval_minutes` values to
-`default_interval_minutes`, or to `5` when no default is configured.
+`[default] interval_minutes`, or to `5` when no default is configured.
 
 The runner takes a lock around selection, execution, state updates, and
 notification decisions. The state file remains shared because state keys are

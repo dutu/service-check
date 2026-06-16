@@ -9,7 +9,7 @@ from service_check.models import CRIT, OK, UNKNOWN, CheckConfig, CheckResult
 def run(config: CheckConfig) -> CheckResult:
     host = config.get("host")
     port_value = config.get("port")
-    timeout = config.get_float("timeout", config.get_float("default_timeout", 5.0))
+    timeout = config.get_float("timeout", 5.0)
 
     if not host:
         return CheckResult(
@@ -58,4 +58,3 @@ def run(config: CheckConfig) -> CheckResult:
                 "error": str(exc),
             },
         )
-

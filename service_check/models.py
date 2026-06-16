@@ -54,16 +54,21 @@ class GlobalConfig:
     state_file: str
     lock_file: str
     notify_cmd: str | None
-    default_interval_minutes: float
-    default_timeout: float
-    default_retries: int
-    default_retry_delay: float
-    default_fail_after: int
-    default_notify_repeat_after_minutes: float
     notify_on_recovery: bool
+
+
+@dataclass(frozen=True)
+class CheckDefaults:
+    interval_minutes: float
+    timeout: float
+    retries: int
+    retry_delay: float
+    fail_after: int
+    notify_repeat_after_minutes: float
 
 
 @dataclass(frozen=True)
 class LoadedConfig:
     global_config: GlobalConfig
+    defaults: CheckDefaults
     checks: list[CheckConfig]

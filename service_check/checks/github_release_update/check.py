@@ -29,7 +29,7 @@ def run(config: CheckConfig) -> CheckResult:
             latest_version = _fetch_latest_release_version(
                 repository=repository,
                 api_url=config.get("api_url"),
-                timeout=config.get_float("timeout", config.get_float("default_timeout", 10.0)),
+                timeout=config.get_float("timeout", 10.0),
             )
         except ValueError as exc:
             return CheckResult(

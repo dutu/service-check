@@ -180,8 +180,9 @@ longer due. `--dry-run` does not take the lock or save state.
 
 Configuration uses INI sections.
 
-`[global]` defines defaults and common behavior. Each service section enables one
-check module and provides only the inputs that module needs.
+`[global]` defines runner-wide behavior. `[default]` defines check defaults that
+service sections may override. Each service section enables one check module and
+provides only the inputs that module needs.
 
 The runner reads the main config first, then optional drop-in files:
 
@@ -214,13 +215,15 @@ Example:
 hostname=home-mt
 state_file=/var/lib/service-check/state.json
 notify_cmd=/usr/local/bin/telegram-notify infra
-default_interval_minutes=5
-default_timeout=5
-default_retries=2
-default_retry_delay=5
-default_fail_after=3
-default_notify_repeat_after_minutes=60
 notify_on_recovery=1
+
+[default]
+interval_minutes=5
+timeout=5
+retries=2
+retry_delay=5
+fail_after=3
+notify_repeat_after_minutes=60
 
 [electrs_tcp]
 enabled=1
@@ -243,15 +246,20 @@ Common global keys:
 | `state_file` | JSON state path. Defaults to `/var/lib/service-check/state.json`. |
 | `lock_file` | Lock path. Defaults to `state_file` plus `.lock`. |
 | `notify_cmd` | Local command used to send alerts. |
-| `default_interval_minutes` | Interval used when a check section omits `interval_minutes`. Defaults to `5`. |
-| `default_timeout` | Default network timeout in seconds. Defaults to `5`. |
-| `default_retries` | Immediate retries inside one watchdog run. Defaults to `0`. |
-| `default_retry_delay` | Delay in seconds between immediate retries. Defaults to `1`. |
-| `default_fail_after` | Failed due runs required before alerting. Defaults to `1`. |
-| `default_notify_repeat_after_minutes` | Minutes before repeating a notification for an unresolved problem. Defaults to `60`. |
 | `notify_on_recovery` | Whether to notify when a failed check recovers. Defaults to `1`. |
 
-Per-check sections may define or override:
+Common default keys in `[default]`:
+
+| Key | Purpose |
+| --- | --- |
+| `interval_minutes` | Interval used when a check section omits `interval_minutes`. Defaults to `5`. |
+| `timeout` | Default network timeout in seconds. Defaults to `5`. |
+| `retries` | Immediate retries inside one watchdog run. Defaults to `0`. |
+| `retry_delay` | Delay in seconds between immediate retries. Defaults to `1`. |
+| `fail_after` | Failed due runs required before alerting. Defaults to `1`. |
+| `notify_repeat_after_minutes` | Minutes before repeating a notification for an unresolved problem. Defaults to `60`. |
+
+Per-check sections may define or override `[default]` keys plus:
 
 - `interval_minutes`
 - `timeout`

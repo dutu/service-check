@@ -7,7 +7,7 @@ from typing import Any
 
 from service_check.checks import get_check
 from service_check.kuma import push_kuma
-from service_check.models import CRIT, OK, UNKNOWN, WARN, CheckConfig, CheckResult, GlobalConfig, LoadedConfig
+from service_check.models import CRIT, OK, UNKNOWN, WARN, CheckConfig, CheckDefaults, CheckResult, GlobalConfig, LoadedConfig
 from service_check.notify import send_notification
 from service_check.state import StateStore
 from service_check.templates import render_template
@@ -29,7 +29,7 @@ def run(
         selected = select_checks(
             loaded.checks,
             checks_state=state.setdefault("checks", {}),
-            global_config=loaded.global_config,
+            defaults=loaded.defaults,
             check_section=check_section,
             run_all=run_all,
         )
@@ -39,6 +39,7 @@ def run(
             selected=selected,
             checks_state=state.setdefault("checks", {}),
             global_config=loaded.global_config,
+            defaults=loaded.defaults,
             dry_run=dry_run,
             no_notify=no_notify,
         )
@@ -47,7 +48,7 @@ def run(
             selected = select_checks(
                 loaded.checks,
                 checks_state=state.setdefault("checks", {}),
-                global_config=loaded.global_config,
+                defaults=loaded.defaults,
                 check_section=check_section,
                 run_all=run_all,
             )
@@ -57,6 +58,7 @@ def run(
                 selected=selected,
                 checks_state=state.setdefault("checks", {}),
                 global_config=loaded.global_config,
+                defaults=loaded.defaults,
                 dry_run=dry_run,
                 no_notify=no_notify,
             )
@@ -67,17 +69,19 @@ def run(
 def process_selected_checks(
     selected: list[CheckConfig],
     global_config: GlobalConfig,
+    defaults: CheckDefaults,
     checks_state: dict[str, Any],
     dry_run: bool,
     no_notify: bool,
 ) -> str:
     worst_status = OK
     for check_config in selected:
-        result = run_check_with_retries(check_config, global_config)
+        result = run_check_with_retries(check_config, defaults)
         if result.status in {CRIT, UNKNOWN}:
             worst_status = result.status
         process_result(
             global_config=global_config,
+            defaults=defaults,
             check_config=check_config,
             result=result,
             checks_state=checks_state,
@@ -91,7 +95,7 @@ def process_selected_checks(
 def select_checks(
     checks: list[CheckConfig],
     checks_state: dict[str, Any],
-    global_config: GlobalConfig,
+    defaults: CheckDefaults,
     check_section: str | None,
     run_all: bool,
 ) -> list[CheckConfig]:
@@ -100,7 +104,7 @@ def select_checks(
     if run_all:
         return checks
     now = datetime.now(timezone.utc)
-    return [check for check in checks if is_due(check, checks_state.get(check.section, {}), global_config, now)]
+    return [check for check in checks if is_due(check, checks_state.get(check.section, {}), defaults, now)]
 
 
 def handle_no_checks(check_section: str | None) -> int:
@@ -114,14 +118,14 @@ def handle_no_checks(check_section: str | None) -> int:
 def is_due(
     check_config: CheckConfig,
     previous: dict[str, Any],
-    global_config: GlobalConfig,
+    defaults: CheckDefaults,
     now: datetime,
 ) -> bool:
     last_run_at = previous.get("last_run_at")
     if not last_run_at:
         return True
 
-    interval_minutes = check_config.get_float("interval_minutes", global_config.default_interval_minutes)
+    interval_minutes = check_config.get_float("interval_minutes", defaults.interval_minutes)
     if interval_minutes <= 0:
         return True
 
@@ -133,14 +137,14 @@ def is_due(
     return (now - previous_run).total_seconds() >= interval_minutes * 60
 
 
-def run_check_with_retries(check_config: CheckConfig, global_config: GlobalConfig) -> CheckResult:
-    retries = check_config.get_int("retries", global_config.default_retries)
-    retry_delay = check_config.get_float("retry_delay", global_config.default_retry_delay)
+def run_check_with_retries(check_config: CheckConfig, defaults: CheckDefaults) -> CheckResult:
+    retries = check_config.get_int("retries", defaults.retries)
+    retry_delay = check_config.get_float("retry_delay", defaults.retry_delay)
     attempts = retries + 1
     last_result: CheckResult | None = None
 
     for attempt in range(1, attempts + 1):
-        last_result = run_one_check(check_config, global_config)
+        last_result = run_one_check(check_config, defaults)
         if last_result.status not in {CRIT, UNKNOWN}:
             return last_result
         if attempt < attempts:
@@ -150,11 +154,11 @@ def run_check_with_retries(check_config: CheckConfig, global_config: GlobalConfi
     return last_result
 
 
-def run_one_check(check_config: CheckConfig, global_config: GlobalConfig) -> CheckResult:
+def run_one_check(check_config: CheckConfig, defaults: CheckDefaults) -> CheckResult:
     try:
         check_fn = get_check(check_config.check)
         merged_options = dict(check_config.options)
-        merged_options.setdefault("default_timeout", str(global_config.default_timeout))
+        merged_options.setdefault("timeout", str(defaults.timeout))
         merged_config = CheckConfig(
             section=check_config.section,
             check=check_config.check,
@@ -173,6 +177,7 @@ def run_one_check(check_config: CheckConfig, global_config: GlobalConfig) -> Che
 
 def process_result(
     global_config: GlobalConfig,
+    defaults: CheckDefaults,
     check_config: CheckConfig,
     result: CheckResult,
     checks_state: dict[str, Any],
@@ -191,14 +196,14 @@ def process_result(
     else:
         consecutive = 0
 
-    context = build_message_context(global_config, check_config, result, consecutive, was_problem)
+    context = build_message_context(global_config, defaults, check_config, result, consecutive, was_problem)
     message = render_result_message(check_config, result, context)
 
     should_notify = False
     if is_problem:
-        fail_after = check_config.get_int("fail_after", global_config.default_fail_after)
+        fail_after = check_config.get_int("fail_after", defaults.fail_after)
         notify_repeat_after_seconds = int(
-            check_config.get_float("notify_repeat_after_minutes", global_config.default_notify_repeat_after_minutes)
+            check_config.get_float("notify_repeat_after_minutes", defaults.notify_repeat_after_minutes)
             * 60
         )
         last_notification_at = previous.get("last_notification_at")
@@ -225,7 +230,7 @@ def process_result(
         check_config.get("kuma_push_url"),
         result.status,
         message,
-        timeout=check_config.get_float("timeout", global_config.default_timeout),
+        timeout=check_config.get_float("timeout", defaults.timeout),
         dry_run=dry_run,
     )
     if kuma_error:
@@ -270,6 +275,7 @@ def render_result_message(check_config: CheckConfig, result: CheckResult, contex
 
 def build_message_context(
     global_config: GlobalConfig,
+    defaults: CheckDefaults,
     check_config: CheckConfig,
     result: CheckResult,
     failure_count: int,
@@ -279,7 +285,7 @@ def build_message_context(
         "hostname": global_config.hostname,
         "section": check_config.section,
         "check": check_config.check,
-        "interval_minutes": check_config.get_float("interval_minutes", global_config.default_interval_minutes),
+        "interval_minutes": check_config.get_float("interval_minutes", defaults.interval_minutes),
         "name": result.name,
         "status": result.status,
         "notify_level": get_notify_level(result.status, is_recovery=result.status == OK and was_problem),
