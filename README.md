@@ -383,19 +383,10 @@ Alert behavior:
 
 ## Checks
 
-Implemented checks:
-
-| Check | Documentation | Purpose |
-| --- | --- | --- |
-| `github_release_update` | `service_check/checks` | Verify whether a newer `service-check` release is available. |
-| `tcp_port` | `service_check/checks` | Verify a TCP port accepts connections. |
-
+Check modules live under [`service_check/checks`](service_check/checks).
 Each check directory owns its own README and example config. Check docs cover
 required config keys, optional config keys, returned template placeholders, and
 local dependencies.
-
-Future check designs live in [ARCHITECTURE.md](ARCHITECTURE.md#future-check-designs),
-not in this README's implemented checks table.
 
 ## Notification Command
 

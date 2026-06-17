@@ -51,13 +51,22 @@ CHECK_KEYS = {
         "expected_version",
         "current_version",
     },
+    "monerod": {
+        "service_name",
+        "config_file",
+        "sync_stall_seconds",
+        "min_out_peers",
+        "min_in_peers",
+        "require_rpc",
+    },
 }
 REQUIRED_CHECK_KEYS = {
     "tcp_port": {"host", "port"},
     "github_release_update": set(),
+    "monerod": set(),
 }
-BOOL_KEYS = {"enabled", "notify_on_recovery", "notify_on_warn", "notify_on_first_success"}
-INT_KEYS = {"retries", "fail_after", "port"}
+BOOL_KEYS = {"enabled", "notify_on_recovery", "notify_on_warn", "notify_on_first_success", "require_rpc"}
+INT_KEYS = {"retries", "fail_after", "port", "sync_stall_seconds", "min_out_peers", "min_in_peers"}
 FLOAT_KEYS = {
     "interval_minutes",
     "timeout_seconds",

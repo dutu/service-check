@@ -30,7 +30,6 @@ notify. Individual check functions know how to interrogate one service.
 - [Versioning And Updates](#versioning-and-updates)
 - [Secrets](#secrets)
 - [Error Handling](#error-handling)
-- [Future Check Designs](#future-check-designs)
 - [Extension Rules](#extension-rules)
 
 ## Runtime Flow
@@ -72,7 +71,7 @@ Use one shared INI config with `interval_minutes` per check section:
 ```ini
 [monerod]
 enabled=1
-check=monerod_sync
+check=monerod
 interval_minutes=5
 
 [monero_wallet_rpc]
@@ -212,13 +211,17 @@ Example shape:
         "details": {
           "height": 3200000,
           "target_height": 3200100,
-          "height_lag": 100
+          "sync_stalled_for_seconds": 180
         }
+      },
+      "check_state": {
+        "last_height": 3200000,
+        "last_height_changed_at": "2026-06-14T18:37:00Z"
       },
       "consecutive_failures": 4,
       "last_seen_at": "2026-06-14T18:40:00Z",
       "last_notification_at": "2026-06-14T18:30:00Z",
-      "last_rendered_message": "Monero daemon unhealthy: height=3200000, target=3200100, lag=100"
+      "last_rendered_message": "Monero daemon unhealthy: height=3200000, target=3200100, stalled=180s"
     }
   }
 }
@@ -279,6 +282,16 @@ Each check module exposes the same callable:
 def run(config: CheckConfig) -> CheckResult:
     ...
 ```
+
+Checks that need persisted historical context may accept a second argument:
+
+```python
+def run(config: CheckConfig, state: dict) -> CheckResult:
+    ...
+```
+
+The runner stores returned check-owned state under the section's `check_state`
+key in the existing state file. Stateless checks can keep using `run(config)`.
 
 Each check module also exposes static metadata for config authors:
 
@@ -348,6 +361,7 @@ class CheckResult:
     status: str
     message: str
     details: dict = field(default_factory=dict)
+    state: dict = field(default_factory=dict)
 ```
 
 Allowed statuses:
@@ -374,7 +388,7 @@ result and runner context.
 Example:
 
 ```ini
-failure_message=Monero daemon unhealthy: height={height}, target={target_height}, lag={height_lag}
+failure_message=Monero daemon unhealthy: height={height}, target={target_height}, stalled={sync_stalled_for_seconds}s
 success_message=Monero daemon healthy: height={height}
 ```
 
@@ -478,9 +492,9 @@ Example:
 ```ini
 [monerod]
 enabled=1
-check=monerod_sync
+check=monerod
 kuma_push_url=https://kuma.example.com/api/push/monerod-token
-failure_message=Monero daemon unhealthy: height={height}, target={target_height}, lag={height_lag}
+failure_message=Monero daemon unhealthy: height={height}, target={target_height}, stalled={sync_stalled_for_seconds}s
 
 [wg_btrad]
 enabled=1
@@ -621,44 +635,6 @@ Examples:
 
 The runner catches uncaught check exceptions and converts them to `UNKNOWN` so
 one bad check does not prevent the rest from running.
-
-## Future Check Designs
-
-These checks are design targets, not implemented checks in the current package.
-
-| Check | Purpose |
-| --- | --- |
-| `monerod_sync` | Verify Monero daemon RPC health, sync lag, offline state, and outgoing peers. |
-| `monero_wallet_rpc` | Verify wallet RPC responds and authenticates. |
-| `wireguard_peer` | Verify interface, peer presence, and latest handshake age. |
-| `http_json` | Verify an HTTP endpoint responds with valid JSON and optional expected fields. |
-| `bitcoind_sync` | Verify Bitcoin Core sync state and peer count. |
-| `github_release_update` | Check whether a newer `service-check` GitHub Release is available. |
-
-For `monerod_sync`, useful health criteria are:
-
-- RPC responds.
-- `offline` is false.
-- `target_height` is zero or local height is close to target height.
-- outgoing peers are at or above `min_outgoing_peers`.
-- optional synchronized flag is true if available.
-
-For `wireguard_peer`, useful health criteria are:
-
-- interface exists
-- peer exists
-- latest handshake age is below the configured threshold
-
-Handshake age can be stale on idle tunnels. If the tunnel is expected to be
-continuously usable, add an optional ping check through the tunnel.
-
-For `bitcoind_sync`, useful health criteria are:
-
-- `bitcoin-cli` can reach the node.
-- `initialblockdownload` is false.
-- `blocks` is close to `headers`.
-- peer count is above the configured minimum.
-- `verificationprogress` is close to 1.
 
 ## Extension Rules
 

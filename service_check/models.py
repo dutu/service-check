@@ -18,6 +18,7 @@ class CheckResult:
     status: str
     message: str
     details: dict[str, Any] = field(default_factory=dict)
+    state: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

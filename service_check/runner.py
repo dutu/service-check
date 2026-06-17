@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import inspect
 import time
 from datetime import datetime, timezone
 from typing import Any, Callable
@@ -115,7 +116,13 @@ def process_selected_checks(
             )
             break
         started = time.monotonic()
-        result = run_check_with_retries(check_config, defaults)
+        previous = checks_state.get(check_config.section, {})
+        check_state = previous.get("check_state") if isinstance(previous, dict) else None
+        result = run_check_with_retries(
+            check_config,
+            defaults,
+            check_state if isinstance(check_state, dict) else {},
+        )
         duration_ms = _elapsed_ms(started)
         if result.status in {CRIT, UNKNOWN}:
             worst_status = result.status
@@ -185,14 +192,18 @@ def is_due(
     return (now - previous_run).total_seconds() >= interval_minutes * 60
 
 
-def run_check_with_retries(check_config: CheckConfig, defaults: CheckDefaults) -> CheckResult:
+def run_check_with_retries(
+    check_config: CheckConfig,
+    defaults: CheckDefaults,
+    check_state: dict[str, Any] | None = None,
+) -> CheckResult:
     retries = check_config.get_int("retries", defaults.retries)
     retry_delay_seconds = check_config.get_float("retry_delay_seconds", defaults.retry_delay_seconds)
     attempts = retries + 1
     last_result: CheckResult | None = None
 
     for attempt in range(1, attempts + 1):
-        last_result = run_one_check(check_config, defaults)
+        last_result = run_one_check(check_config, defaults, check_state or {})
         if last_result.status not in {CRIT, UNKNOWN}:
             if attempt > 1:
                 LOGGER.info(
@@ -218,7 +229,11 @@ def run_check_with_retries(check_config: CheckConfig, defaults: CheckDefaults) -
     return last_result
 
 
-def run_one_check(check_config: CheckConfig, defaults: CheckDefaults) -> CheckResult:
+def run_one_check(
+    check_config: CheckConfig,
+    defaults: CheckDefaults,
+    check_state: dict[str, Any] | None = None,
+) -> CheckResult:
     try:
         check_fn = get_check(check_config.check)
         merged_options = dict(check_config.options)
@@ -228,6 +243,8 @@ def run_one_check(check_config: CheckConfig, defaults: CheckDefaults) -> CheckRe
             check=check_config.check,
             options=merged_options,
         )
+        if _accepts_check_state(check_fn):
+            return check_fn(merged_config, check_state or {})
         return check_fn(merged_config)
     except Exception as exc:  # noqa: BLE001 - runner must isolate bad checks.
         LOGGER.exception("check %s failed unexpectedly", check_config.section)
@@ -358,6 +375,7 @@ def process_result(
             if result.status == OK and notification_was_sent
             else previous.get("last_success_notification_at")
         ),
+        "check_state": result.state,
     }
 
 
@@ -368,6 +386,14 @@ def serialize_check_result(result: CheckResult) -> dict[str, Any]:
         "message": result.message,
         "details": result.details,
     }
+
+
+def _accepts_check_state(check_fn: Callable[..., CheckResult]) -> bool:
+    try:
+        parameters = inspect.signature(check_fn).parameters
+    except (TypeError, ValueError):
+        return False
+    return len(parameters) >= 2
 
 
 def render_result_message(check_config: CheckConfig, result: CheckResult, context: dict[str, Any]) -> str:
