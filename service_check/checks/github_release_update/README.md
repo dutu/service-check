@@ -79,4 +79,7 @@ success_message=service-check {current_version} is up-to-date
 failure_message=service-check version check problem: {message}
 failure_message.update_available=service-check new version available: current={current_version}, available={available_version}
 failure_message.version_newer=service-check local version {current_version} is newer than available {available_version}
+failure_message.invalid_config=service-check version check has invalid GitHub config for {repository}: {error}
+failure_message.fetch_failed=service-check could not fetch latest release for {repository}: {error}
+failure_message.invalid_version=service-check version check got invalid version data: current={current_version}, available={available_version}, error={error}
 ```
