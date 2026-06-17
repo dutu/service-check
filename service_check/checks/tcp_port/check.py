@@ -13,6 +13,8 @@ CHECK_METADATA = {
         UNKNOWN: "Required config is missing or invalid.",
     },
     "details": {
+        "problem_code": "Primary machine-readable problem reason.",
+        "problem_codes": "List of machine-readable problem reasons.",
         "host": "Configured hostname or IP address.",
         "port": "Configured TCP port number.",
         "timeout_seconds": "Connection timeout used by the check.",
@@ -32,7 +34,7 @@ def run(config: CheckConfig) -> CheckResult:
             name=config.section,
             status=UNKNOWN,
             message="tcp_port check requires host",
-            details={},
+            details={"problem_code": "missing_host", "problem_codes": ["missing_host"]},
         )
 
     try:
@@ -42,7 +44,12 @@ def run(config: CheckConfig) -> CheckResult:
             name=config.section,
             status=UNKNOWN,
             message="tcp_port check requires numeric port",
-            details={"host": host, "port": port_value},
+            details={
+                "host": host,
+                "port": port_value,
+                "problem_code": "invalid_port",
+                "problem_codes": ["invalid_port"],
+            },
         )
 
     started = time.monotonic()
@@ -72,5 +79,7 @@ def run(config: CheckConfig) -> CheckResult:
                 "timeout_seconds": timeout_seconds,
                 "elapsed_ms": elapsed_ms,
                 "error": str(exc),
+                "problem_code": "port_unreachable",
+                "problem_codes": ["port_unreachable"],
             },
         )

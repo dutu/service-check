@@ -13,6 +13,7 @@ Optional:
 
 - `timeout_seconds`: connection timeout in seconds, defaults to `[default] timeout_seconds`
 - `failure_message`: alert template used when the port is unreachable
+- `failure_message.<problem_code>`: alert template used for a specific problem code
 - `success_message`: message template used for OK status, recovery notifications, and Kuma OK pushes
 - `interval_minutes`: how often this check runs
 - `retries`: immediate retries before the run is considered failed
@@ -33,7 +34,15 @@ The check returns these `details` keys for message templates:
 - `port`
 - `timeout_seconds`
 - `elapsed_ms`
+- `problem_code`, only on failure or unknown results
+- `problem_codes`, only on failure or unknown results
 - `error`, only on failure
+
+## Problem Codes
+
+- `missing_host`: required `host` config is missing
+- `invalid_port`: required `port` config is not numeric
+- `port_unreachable`: TCP connection failed
 
 ## Example
 
@@ -48,5 +57,6 @@ timeout_seconds=2
 # notify_topic=infra
 # notify_cmd=/usr/local/bin/telegram-notify --level {notify_level} {notify_topic}
 failure_message=TCP port {host}:{port} is down: {error}
+failure_message.port_unreachable=TCP port {host}:{port} is down: {error}
 success_message=TCP port {host}:{port} is reachable in {elapsed_ms}ms
 ```

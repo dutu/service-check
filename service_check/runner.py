@@ -271,6 +271,11 @@ def process_result(
     notify_on_warn = check_config.get_bool("notify_on_warn", False)
     is_problem = result.status in {CRIT, UNKNOWN} or (result.status == "WARN" and notify_on_warn)
     was_problem = previous.get("last_problem", False)
+    previous_result = previous.get("last_result")
+    previous_status = previous_result.get("status") if isinstance(previous_result, dict) else None
+    previous_details = previous_result.get("details") if isinstance(previous_result, dict) else None
+    previous_problem_code = previous_details.get("problem_code") if isinstance(previous_details, dict) else None
+    problem_code = get_problem_code(result)
     consecutive = int(previous.get("consecutive_failures", 0))
 
     if is_problem:
@@ -290,13 +295,22 @@ def process_result(
             * 60
         )
         last_notification_at = previous.get("last_notification_at")
+        problem_changed = was_problem and (
+            (previous_status is not None and previous_status != result.status)
+            or (
+                problem_code is not None
+                and previous_problem_code is not None
+                and previous_problem_code != problem_code
+            )
+        )
         should_notify = consecutive >= fail_after and (
             not was_problem
             or consecutive == fail_after
+            or problem_changed
             or _seconds_since(last_notification_at, now) >= notify_repeat_after_seconds
         )
         if should_notify:
-            notification_reason = "problem"
+            notification_reason = "problem_changed" if problem_changed else "problem"
         elif consecutive < fail_after:
             notification_reason = "below_fail_after"
         else:
@@ -348,7 +362,7 @@ def process_result(
 
     LOGGER.info(
         "check_result section=%s check=%s status=%s duration_ms=%d consecutive_failures=%d was_problem=%s "
-        "is_problem=%s notification=%s notification_reason=%s kuma=%s message=%r",
+        "is_problem=%s problem_code=%s notification=%s notification_reason=%s kuma=%s message=%r",
         check_config.section,
         check_config.check,
         result.status,
@@ -356,6 +370,7 @@ def process_result(
         consecutive,
         was_problem,
         is_problem,
+        problem_code or "-",
         notification_action,
         notification_reason,
         kuma_action,
@@ -402,10 +417,22 @@ def render_result_message(check_config: CheckConfig, result: CheckResult, contex
         if template:
             return render_template(template, context)
         return result.message
+    problem_code = get_problem_code(result)
+    if problem_code:
+        template = check_config.get(f"failure_message.{problem_code}")
+        if template:
+            return render_template(template, context)
     template = check_config.get("failure_message")
     if template:
         return render_template(template, context)
     return result.message
+
+
+def get_problem_code(result: CheckResult) -> str | None:
+    value = result.details.get("problem_code")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
 
 
 def build_message_context(

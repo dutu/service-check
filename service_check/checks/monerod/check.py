@@ -35,6 +35,8 @@ CHECK_METADATA = {
         UNKNOWN: "Required local configuration could not be discovered, read, or parsed.",
     },
     "details": {
+        "problem_code": "Primary machine-readable problem reason.",
+        "problem_codes": "List of machine-readable problem reasons.",
         "service_name": "systemd service name checked with systemctl.",
         "config_file": "monerod config path used by the check.",
         "rpc_host": "Host used for unrestricted RPC checks.",
@@ -62,16 +64,16 @@ def run(config: CheckConfig, state: dict[str, Any] | None = None) -> CheckResult
         "service_name": config.get("service_name", DEFAULT_SERVICE_NAME) or DEFAULT_SERVICE_NAME,
         "config_file": "",
     }
-    errors: list[str] = []
-    warnings: list[str] = []
+    errors: list[tuple[str, str]] = []
+    warnings: list[tuple[str, str]] = []
     new_state = dict(previous_state)
 
     service_name = details["service_name"]
     service_status = _systemctl_is_active(service_name, config.get_float("timeout_seconds", 5.0))
     if service_status.status == UNKNOWN:
-        return _result(config, UNKNOWN, service_status.message, details, new_state, service_status.error)
+        return _result(config, UNKNOWN, service_status.message, details, new_state, service_status.error, ["service_check_failed"])
     if service_status.status == CRIT:
-        errors.append(service_status.message)
+        errors.append(("service_inactive", service_status.message))
 
     config_file = config.get("config_file") or _discover_config_file(service_name, config.get_float("timeout_seconds", 5.0))
     if not config_file:
@@ -88,6 +90,7 @@ def run(config: CheckConfig, state: dict[str, Any] | None = None) -> CheckResult
             details,
             new_state,
             str(exc),
+            ["config_unreadable"],
         )
 
     port_checks = _build_port_checks(monerod_config)
@@ -96,7 +99,10 @@ def run(config: CheckConfig, state: dict[str, Any] | None = None) -> CheckResult
         details[f"{port_check.name}_port"] = port_check.port
         port_error = _check_tcp_port(port_check.host, port_check.port, config.get_float("timeout_seconds", 5.0))
         if port_error:
-            errors.append(f"{port_check.label} port {port_check.host}:{port_check.port} is not reachable: {port_error}")
+            errors.append((
+                f"{port_check.name}_port_closed",
+                f"{port_check.label} port {port_check.host}:{port_check.port} is not reachable: {port_error}",
+            ))
 
     rpc_port = _get_int(monerod_config, "rpc-bind-port")
     if rpc_port:
@@ -111,27 +117,42 @@ def run(config: CheckConfig, state: dict[str, Any] | None = None) -> CheckResult
             timeout=config.get_float("timeout_seconds", 5.0),
         )
         if rpc_result.error:
-            errors.append(f"monerod RPC get_info failed: {rpc_result.error}")
+            errors.append(("rpc_failed", f"monerod RPC get_info failed: {rpc_result.error}"))
         elif rpc_result.payload:
-            sync_status, sync_message, sync_state = _evaluate_sync(config, rpc_result.payload, previous_state)
+            sync_status, sync_message, sync_state, sync_code = _evaluate_sync(config, rpc_result.payload, previous_state)
             new_state.update(sync_state)
             details.update(_rpc_details(rpc_result.payload))
             if sync_status == CRIT:
-                errors.append(sync_message)
+                errors.append((sync_code, sync_message))
             elif sync_status == WARN:
-                warnings.append(sync_message)
-            peer_status, peer_message = _evaluate_peers(config, rpc_result.payload)
+                warnings.append((sync_code, sync_message))
+            peer_status, peer_message, peer_code = _evaluate_peers(config, rpc_result.payload)
             if peer_status == CRIT:
-                errors.append(peer_message)
+                errors.append((peer_code, peer_message))
             elif peer_status == WARN:
-                warnings.append(peer_message)
+                warnings.append((peer_code, peer_message))
     elif config.get_bool("require_rpc", False):
-        errors.append("unrestricted RPC is required but rpc-bind-port is not configured")
+        errors.append(("rpc_not_configured", "unrestricted RPC is required but rpc-bind-port is not configured"))
 
     if errors:
-        return _result(config, CRIT, "; ".join(errors), details, new_state, "; ".join(errors))
+        return _result(
+            config,
+            CRIT,
+            "; ".join(message for _code, message in errors),
+            details,
+            new_state,
+            "; ".join(message for _code, message in errors),
+            [code for code, _message in errors],
+        )
     if warnings:
-        return _result(config, WARN, "; ".join(warnings), details, new_state)
+        return _result(
+            config,
+            WARN,
+            "; ".join(message for _code, message in warnings),
+            details,
+            new_state,
+            problem_codes=[code for code, _message in warnings],
+        )
     return _result(config, OK, "monerod is active, reachable, and synced", details, new_state)
 
 
@@ -283,7 +304,7 @@ def _evaluate_sync(
     config: CheckConfig,
     payload: dict[str, Any],
     previous_state: dict[str, Any],
-) -> tuple[str, str, dict[str, Any]]:
+) -> tuple[str, str, dict[str, Any], str]:
     now = _utc_now()
     height = _int_payload(payload, "height")
     target_height = _int_payload(payload, "target_height")
@@ -300,24 +321,24 @@ def _evaluate_sync(
         state["last_height_changed_at"] = previous_state.get("last_height_changed_at", now)
 
     if offline:
-        return CRIT, "monerod RPC reports offline=true", state
+        return CRIT, "monerod RPC reports offline=true", state, "rpc_offline"
     if synchronized or (height is not None and target_height is not None and target_height > 0 and height >= target_height):
         state["last_synced_at"] = now
-        return OK, "monerod is synced", state
+        return OK, "monerod is synced", state, ""
     if height is None or target_height is None or target_height <= 0:
-        return WARN, "monerod RPC does not report enough height data to confirm sync", state
+        return WARN, "monerod RPC does not report enough height data to confirm sync", state, "sync_unknown"
 
     stalled_for = _seconds_since(str(state["last_height_changed_at"]), now)
     state["sync_stalled_for_seconds"] = stalled_for
     stall_threshold = config.get_int("sync_stall_seconds", DEFAULT_SYNC_STALL_SECONDS)
     if height < target_height and not busy_syncing:
-        return CRIT, f"monerod is behind ({height}/{target_height}) and not syncing", state
+        return CRIT, f"monerod is behind ({height}/{target_height}) and not syncing", state, "sync_not_syncing"
     if height < target_height and stalled_for >= stall_threshold:
-        return CRIT, f"monerod sync is stalled for {stalled_for}s at height {height}/{target_height}", state
-    return WARN, f"monerod sync is pending at height {height}/{target_height}", state
+        return CRIT, f"monerod sync is stalled for {stalled_for}s at height {height}/{target_height}", state, "sync_stalled"
+    return WARN, f"monerod sync is pending at height {height}/{target_height}", state, "sync_pending"
 
 
-def _evaluate_peers(config: CheckConfig, payload: dict[str, Any]) -> tuple[str, str]:
+def _evaluate_peers(config: CheckConfig, payload: dict[str, Any]) -> tuple[str, str, str]:
     min_out_peers = config.get_int("min_out_peers", 1)
     min_in_peers = config.get_int("min_in_peers", 0)
     outgoing = _int_payload(payload, "outgoing_connections_count")
@@ -336,8 +357,9 @@ def _evaluate_peers(config: CheckConfig, payload: dict[str, Any]) -> tuple[str, 
         if status != CRIT:
             status = WARN
     if messages:
-        return status, "; ".join(messages)
-    return OK, "peer thresholds pass"
+        code = "out_peers_low" if outgoing is not None and outgoing < min_out_peers else "in_peers_low"
+        return status, "; ".join(messages), code
+    return OK, "peer thresholds pass", ""
 
 
 def _rpc_details(payload: dict[str, Any]) -> dict[str, Any]:
@@ -360,8 +382,13 @@ def _result(
     details: dict[str, Any],
     state: dict[str, Any],
     error: str = "",
+    problem_codes: list[str] | None = None,
 ) -> CheckResult:
     result_details = dict(details)
+    codes = [code for code in problem_codes or [] if code]
+    if codes:
+        result_details["problem_code"] = codes[0]
+        result_details["problem_codes"] = codes
     if "sync_stalled_for_seconds" in state:
         result_details["sync_stalled_for_seconds"] = state["sync_stalled_for_seconds"]
     if error:

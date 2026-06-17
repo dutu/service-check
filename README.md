@@ -322,6 +322,17 @@ failure_message=TCP port {host}:{port} is down: {error}
 success_message=TCP port {host}:{port} is reachable in {elapsed_ms}ms
 ```
 
+Failure templates may also be specialized by problem code:
+
+```ini
+failure_message=Service problem: {message}
+failure_message.port_unreachable=TCP port {host}:{port} is down: {error}
+```
+
+When a failing result includes `{problem_code}`, the runner first tries
+`failure_message.<problem_code>`, then falls back to `failure_message`, then to
+the check's raw message.
+
 Built-in placeholders:
 
 | Placeholder | Source |
@@ -336,6 +347,11 @@ Built-in placeholders:
 | `{failure_count}` | Consecutive failed due runs |
 | `{details_key}` | Any key returned in `CheckResult.details`, for example `{elapsed_ms}` |
 | `{config_key}` | Any key from the check config, for example `{notify_topic}` |
+
+Checks may return `{problem_code}` for the primary failure reason and
+`{problem_codes}` for all current failure reasons. A problem-code change triggers
+a notification immediately after `fail_after` is satisfied, without waiting for
+`notify_repeat_after_minutes`.
 
 Template rendering is deliberately simple:
 
@@ -378,6 +394,7 @@ Alert behavior:
 | `WARN -> CRIT` | Notify after `fail_after` failed runs. |
 | `CRIT -> OK` | Notify recovery if enabled. |
 | `CRIT -> CRIT` | Do not repeat unless `notify_repeat_after_minutes` elapsed. |
+| problem code changes | Notify immediately after `fail_after` is satisfied. |
 | `OK -> WARN` | No local alert unless `notify_on_warn=1`. |
 | first `OK` | Notify once only if `notify_on_first_success=1`. |
 

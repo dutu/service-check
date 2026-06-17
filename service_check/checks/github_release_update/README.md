@@ -20,6 +20,7 @@ Optional:
   when set, the check uses this value instead of calling GitHub
 - `current_version`: override detected version, primarily for tests
 - `failure_message`: alert template used when the version assertion fails
+- `failure_message.<problem_code>`: alert template used for a specific problem code
 - `success_message`: message template used for OK status, recovery notifications, and Kuma OK pushes
 - `notify_on_first_success`: notify the first successful run once
 - `interval_minutes`: how often this check runs
@@ -51,7 +52,17 @@ The check returns these `details` keys for message templates:
 - `latest_version`
 - `available_version`
 - `repository`
+- `problem_code`, only on failure or warning
+- `problem_codes`, only on failure or warning
 - `error`, only for invalid version config
+
+## Problem Codes
+
+- `update_available`: installed version is behind the expected or latest version
+- `version_newer`: installed version is newer than the expected or latest version
+- `invalid_config`: GitHub repository config is invalid
+- `fetch_failed`: latest release could not be fetched
+- `invalid_version`: current or latest version is not a dotted numeric version
 
 ## Example
 
@@ -65,5 +76,7 @@ notify_repeat_after_minutes=1440
 notify_on_warn=1
 notify_on_first_success=1
 success_message=service-check {current_version} is up-to-date
-failure_message=service-check new version available: current={current_version}, available={available_version}
+failure_message=service-check version check problem: {message}
+failure_message.update_available=service-check new version available: current={current_version}, available={available_version}
+failure_message.version_newer=service-check local version {current_version} is newer than available {available_version}
 ```

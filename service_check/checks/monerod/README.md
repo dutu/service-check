@@ -22,6 +22,7 @@ Optional:
 - `require_rpc`: return `CRIT` if unrestricted RPC is not configured, defaults to `0`
 - `timeout_seconds`: timeout for systemctl, TCP, and RPC calls, defaults to `[default] timeout_seconds`
 - `failure_message`: alert template used for `WARN`, `CRIT`, or `UNKNOWN`
+- `failure_message.<problem_code>`: alert template used for a specific problem code
 - `success_message`: message template used for OK status, recovery notifications, and Kuma OK pushes
 - `interval_minutes`: how often this check runs
 - `retries`: immediate retries before the run is considered failed
@@ -70,7 +71,27 @@ The check returns these `details` keys for message templates:
 - `outgoing_connections_count`
 - `incoming_connections_count`
 - `sync_stalled_for_seconds`
+- `problem_code`, only on failure or warning
+- `problem_codes`, only on failure or warning
 - `error`, only on failure or unknown results
+
+## Problem Codes
+
+- `service_check_failed`: `systemctl` could not be executed successfully
+- `service_inactive`: systemd service is not active
+- `config_unreadable`: monerod config file could not be read
+- `p2p_port_closed`: configured P2P port is not reachable
+- `rpc_port_closed`: configured unrestricted RPC port is not reachable
+- `restricted_rpc_port_closed`: configured restricted RPC port is not reachable
+- `rpc_failed`: unrestricted RPC `get_info` failed
+- `rpc_not_configured`: unrestricted RPC is required but not configured
+- `rpc_offline`: RPC reports `offline=true`
+- `sync_unknown`: RPC lacks enough height data to confirm sync
+- `sync_pending`: daemon is behind and syncing
+- `sync_not_syncing`: daemon is behind and not syncing
+- `sync_stalled`: daemon is behind and height has not advanced past threshold
+- `out_peers_low`: outgoing peers are below `min_out_peers`
+- `in_peers_low`: incoming peers are below `min_in_peers`
 
 ## Example
 
@@ -85,5 +106,8 @@ min_out_peers=1
 min_in_peers=0
 timeout_seconds=2
 failure_message=monerod unhealthy: {message}
+failure_message.sync_pending=monerod sync pending: height={height}, target={target_height}
+failure_message.sync_stalled=monerod sync stalled for {sync_stalled_for_seconds}s at {height}/{target_height}
+failure_message.out_peers_low=monerod outgoing peers below threshold: {outgoing_connections_count}
 success_message=monerod synced at height {height} with {outgoing_connections_count} outgoing peers
 ```

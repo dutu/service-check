@@ -17,6 +17,8 @@ CHECK_METADATA = {
         UNKNOWN: "Version config is invalid or latest release could not be fetched.",
     },
     "details": {
+        "problem_code": "Primary machine-readable problem reason.",
+        "problem_codes": "List of machine-readable problem reasons.",
         "current_version": "Installed or configured current version.",
         "expected_version": "Expected/latest version used for comparison.",
         "latest_version": "Latest version resolved from config or GitHub.",
@@ -52,14 +54,14 @@ def run(config: CheckConfig) -> CheckResult:
                 name=config.section,
                 status=UNKNOWN,
                 message=f"github_release_update check has invalid config: {exc}",
-                details={**details, "error": str(exc)},
+                details={**details, **_problem("invalid_config"), "error": str(exc)},
             )
         except (HTTPError, URLError, OSError, json.JSONDecodeError) as exc:
             return CheckResult(
                 name=config.section,
                 status=UNKNOWN,
                 message=f"github_release_update check could not fetch latest GitHub release: {exc}",
-                details={**details, "error": str(exc)},
+                details={**details, **_problem("fetch_failed"), "error": str(exc)},
             )
 
     details["latest_version"] = latest_version
@@ -74,7 +76,7 @@ def run(config: CheckConfig) -> CheckResult:
             name=config.section,
             status=UNKNOWN,
             message=f"github_release_update check has invalid {config_source}: {exc}",
-            details={**details, "error": str(exc)},
+            details={**details, **_problem("invalid_version"), "error": str(exc)},
         )
 
     if comparison < 0:
@@ -82,14 +84,14 @@ def run(config: CheckConfig) -> CheckResult:
             name=config.section,
             status=WARN,
             message=f"service-check {current_version} is behind available version {latest_version}",
-            details=details,
+            details={**details, **_problem("update_available")},
         )
     if comparison > 0:
         return CheckResult(
             name=config.section,
             status=WARN,
             message=f"service-check {current_version} is newer than available version {latest_version}",
-            details=details,
+            details={**details, **_problem("version_newer")},
         )
 
     return CheckResult(
@@ -98,6 +100,13 @@ def run(config: CheckConfig) -> CheckResult:
         message=f"service-check {current_version} is up-to-date",
         details=details,
     )
+
+
+def _problem(code: str) -> dict[str, object]:
+    return {
+        "problem_code": code,
+        "problem_codes": [code],
+    }
 
 
 def _fetch_latest_release_version(repository: str, api_url: str | None, timeout: float) -> str:

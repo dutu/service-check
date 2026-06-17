@@ -364,6 +364,19 @@ class CheckResult:
     state: dict = field(default_factory=dict)
 ```
 
+Checks should include stable problem-code details when a result is not healthy:
+
+```python
+details={
+    "problem_code": "sync_stalled",
+    "problem_codes": ["sync_stalled", "out_peers_low"],
+}
+```
+
+`problem_code` is the primary reason used for change detection and
+code-specific failure templates. `problem_codes` is informational context for
+messages and logs.
+
 Allowed statuses:
 
 ```text
@@ -389,6 +402,7 @@ Example:
 
 ```ini
 failure_message=Monero daemon unhealthy: height={height}, target={target_height}, stalled={sync_stalled_for_seconds}s
+failure_message.sync_stalled=Monero daemon sync stalled for {sync_stalled_for_seconds}s
 success_message=Monero daemon healthy: height={height}
 ```
 

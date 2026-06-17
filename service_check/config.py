@@ -42,6 +42,7 @@ COMMON_CHECK_KEYS = {
     "failure_message",
     "success_message",
 }
+DYNAMIC_CHECK_KEY_PREFIXES = ("failure_message.",)
 CHECK_KEYS = {
     "tcp_port": {"host", "port"},
     "github_release_update": {
@@ -235,7 +236,7 @@ def _unknown_key_issues(
 ) -> list[str]:
     issues = []
     for key in values:
-        if key not in allowed_keys:
+        if key not in allowed_keys and not key.startswith(DYNAMIC_CHECK_KEY_PREFIXES):
             issues.append(_unknown_key_issue(section, key, allowed_keys))
     return issues
 
