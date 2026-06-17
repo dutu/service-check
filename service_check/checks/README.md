@@ -10,7 +10,9 @@ Each check directory should include:
 
 - `check.py`: implementation with `run(...)` and `CHECK_METADATA`
 - `README.md`: check-specific config, behavior, status, and template fields
-- `example.ini`: minimal runnable config section
+- `<order>-<check-name>.example.ini`: minimal config section whose filename
+  marks it as an example and suggests drop-in order, for example
+  `30-monerod.example.ini`
 
 Checks should document their possible `problem_code` values. Config authors can
 override failure messages per code:

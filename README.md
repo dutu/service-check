@@ -506,14 +506,17 @@ The installer performs the normal deployment flow:
 - links `/usr/local/bin/service-check` to the virtualenv command
 - creates `/etc/service-check`, `/etc/service-check/service-check.ini.d`, and `/var/lib/service-check`
 - copies production config with non-overwrite behavior
+- installs check examples as inactive `.ini.skip` drop-ins with non-overwrite behavior
 - repairs the old local-dev relative state paths if found in `/etc/service-check/service-check.ini`
 - disables the obsolete default `example_tcp_open` drop-in if it still exists unchanged
 - installs the systemd service and timer
 - enables `service-check.timer`
 - runs version, dry-run, and timer status checks
 
-Existing files under `/etc/service-check` are not overwritten. Review and merge
-new example config manually when upgrading an existing installation.
+Existing files under `/etc/service-check` are not overwritten. Check examples
+are installed as `/etc/service-check/service-check.ini.d/*.ini.skip`; copy an
+example to the same name without `.skip`, edit it, and validate config to enable
+that check.
 
 Manual fallback flow:
 
@@ -528,6 +531,7 @@ sudo ln -sfn /opt/service-check-venv/bin/service-check /usr/local/bin/service-ch
 sudo mkdir -p /etc/service-check/service-check.ini.d /var/lib/service-check
 sudo cp -n examples/service-check.production.ini /etc/service-check/service-check.ini
 sudo cp -n examples/service-check.ini.d/10-version.ini /etc/service-check/service-check.ini.d/10-version.ini
+for file in service_check/checks/*/*.example.ini; do sudo cp -n "$file" "/etc/service-check/service-check.ini.d/$(basename "$file" .example.ini).ini.skip"; done
 sudo cp systemd/service-check.service /etc/systemd/system/service-check.service
 sudo cp systemd/service-check.timer /etc/systemd/system/service-check.timer
 sudo systemctl daemon-reload
@@ -593,8 +597,9 @@ need them:
 
 ```bash
 cd /opt/service-check-src
-git diff HEAD@{1} -- examples/ systemd/
+git diff HEAD@{1} -- examples/ service_check/checks/ systemd/
 sudo cp -n examples/service-check.ini.d/10-version.ini /etc/service-check/service-check.ini.d/10-version.ini
+for file in service_check/checks/*/*.example.ini; do sudo cp -n "$file" "/etc/service-check/service-check.ini.d/$(basename "$file" .example.ini).ini.skip"; done
 ```
 
 ## systemd

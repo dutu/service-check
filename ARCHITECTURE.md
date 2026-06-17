@@ -130,7 +130,7 @@ service_check/
     |   +-- __init__.py
     |   +-- check.py
     |   +-- README.md
-    |   +-- example.ini
+    |   +-- 20-tcp-port.example.ini
 ```
 
 ### `cli.py`
@@ -333,7 +333,7 @@ Adding a new check requires:
 - adding `check.py` with `run(config)`
 - adding `CHECK_METADATA` to `check.py`
 - adding a module `README.md`
-- adding a module `example.ini`
+- adding an ordered module example, for example `20-tcp-port.example.ini`
 - documenting returned `details` keys for message placeholders
 
 Use `service_check/checks/tcp_port/` as the reference implementation for a

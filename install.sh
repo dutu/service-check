@@ -90,6 +90,7 @@ install_runtime_files() {
     repair_known_bad_config_defaults "${CONFIG_DIR}/service-check.ini"
   fi
   cp -n "${SRC_DIR}/examples/service-check.ini.d/10-version.ini" "${DROPIN_DIR}/10-version.ini"
+  install_check_examples
   disable_known_old_tcp_dropin
 
   log "Installing systemd units"
@@ -98,6 +99,29 @@ install_runtime_files() {
 
   log "Installing ${BIN_LINK}"
   ln -sfn "${VENV_DIR}/bin/service-check" "${BIN_LINK}"
+}
+
+install_check_examples() {
+  local example_file
+  local target_file
+  local copied=0
+
+  shopt -s nullglob
+  for example_file in "${SRC_DIR}"/service_check/checks/*/*.example.ini; do
+    target_file="${DROPIN_DIR}/$(basename "${example_file}" .example.ini).ini.skip"
+    if [[ -e "${target_file}" ]]; then
+      log "Skipping existing check example ${target_file}"
+      continue
+    fi
+    install -m 0644 "${example_file}" "${target_file}"
+    copied=$((copied + 1))
+  done
+  shopt -u nullglob
+
+  if [[ "${copied}" -gt 0 ]]; then
+    log "Installed ${copied} inactive check example(s) as ${DROPIN_DIR}/*.ini.skip"
+    log "Copy an .ini.skip file to .ini and edit it to enable that check"
+  fi
 }
 
 disable_known_old_tcp_dropin() {
