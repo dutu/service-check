@@ -63,6 +63,7 @@ CHECK_KEYS = {
     "public_ip_reputation": {
         "public_ip",
         "public_ip_provider",
+        "public_ip_interface",
         "public_ip_timeout_seconds",
         "providers",
         "reputation_cache_ttl_seconds",
@@ -71,8 +72,6 @@ CHECK_KEYS = {
         "use_stale_on_provider_failure",
         "max_stale_ttl_seconds",
         "fail_on_verdicts",
-        "fail_on_inconclusive",
-        "fail_on_unknown",
         "ipapi_is_api_key",
         "iphub_api_key",
         "abuseipdb_api_key",
@@ -91,8 +90,6 @@ BOOL_KEYS = {
     "notify_on_first_success",
     "require_rpc",
     "use_stale_on_provider_failure",
-    "fail_on_inconclusive",
-    "fail_on_unknown",
 }
 INT_KEYS = {
     "retries",

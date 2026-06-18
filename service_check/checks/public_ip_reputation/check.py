@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import contextlib
 import json
+import os
+import socket
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -29,6 +32,7 @@ CHECK_METADATA = {
         "problem_codes": "List of machine-readable problem reasons.",
         "public_ip": "Current public IP address.",
         "previous_public_ip": "Previous public IP address from check state.",
+        "public_ip_interface": "Network interface used for public IP detection, when configured.",
         "verdict": "Final reputation verdict.",
         "confidence": "Final confidence label.",
         "sources": "Comma-separated providers contributing to the verdict.",
@@ -53,6 +57,10 @@ class ProviderResult:
     rate_limited_until: str = ""
 
 
+class PublicIpInterfaceError(ValueError):
+    pass
+
+
 def run(config: CheckConfig, state: dict[str, Any] | None = None) -> CheckResult:
     previous_state = dict(state or {})
     timeout = config.get_float("timeout_seconds", 5.0)
@@ -62,6 +70,11 @@ def run(config: CheckConfig, state: dict[str, Any] | None = None) -> CheckResult
     try:
         public_ip = _detect_public_ip(config, timeout)
     except ValueError as exc:
+        problem_code = (
+            "public_ip_interface_missing"
+            if isinstance(exc, PublicIpInterfaceError)
+            else "public_ip_detection_failed"
+        )
         return _result(
             config,
             UNKNOWN,
@@ -69,6 +82,7 @@ def run(config: CheckConfig, state: dict[str, Any] | None = None) -> CheckResult
             {
                 "public_ip": "",
                 "previous_public_ip": str(previous_state.get("public_ip", "")),
+                "public_ip_interface": config.get("public_ip_interface", "") or "",
                 "verdict": "unknown",
                 "confidence": "none",
                 "sources": "",
@@ -81,7 +95,7 @@ def run(config: CheckConfig, state: dict[str, Any] | None = None) -> CheckResult
                 "error": str(exc),
             },
             previous_state,
-            ["public_ip_detection_failed"],
+            [problem_code],
         )
 
     reputation_cache = previous_state.get("reputation")
@@ -116,8 +130,11 @@ def _detect_public_ip(config: CheckConfig, timeout: float) -> str:
         return _validate_ip(override)
 
     provider = config.get("public_ip_provider", DEFAULT_PUBLIC_IP_PROVIDER) or DEFAULT_PUBLIC_IP_PROVIDER
+    interface = config.get("public_ip_interface")
+    if interface:
+        _validate_interface(interface)
     public_ip_timeout = config.get_float("public_ip_timeout_seconds", timeout)
-    body = _fetch_text(provider, timeout=public_ip_timeout)
+    body = _fetch_text(provider, timeout=public_ip_timeout, interface=interface)
     return _validate_ip(body.strip())
 
 
@@ -154,6 +171,7 @@ def _refresh_reputation(
     details = {
         "public_ip": public_ip,
         "previous_public_ip": str(previous_state.get("public_ip", "")),
+        "public_ip_interface": config.get("public_ip_interface", "") or "",
         "verdict": verdict,
         "confidence": confidence,
         "sources": ",".join(sources),
@@ -166,6 +184,7 @@ def _refresh_reputation(
     }
     new_state["reputation"] = {
         "public_ip": public_ip,
+        "public_ip_interface": config.get("public_ip_interface", "") or "",
         "checked_at": now,
         "verdict": verdict,
         "confidence": confidence,
@@ -223,7 +242,7 @@ def _check_tor(
         state["tor"] = {"exit_ips": sorted(exit_ips), "fetched_at": now}
     if public_ip in exit_ips:
         return ProviderResult("tor", "tor", "high", {"is_tor": True})
-    return ProviderResult("tor", "normal", "high", {"is_tor": False})
+    return ProviderResult("tor", "clean", "high", {"is_tor": False})
 
 
 def _check_ipapi_is(config: CheckConfig, public_ip: str, timeout: float) -> ProviderResult:
@@ -250,7 +269,7 @@ def _check_ipapi_is(config: CheckConfig, public_ip: str, timeout: float) -> Prov
         return ProviderResult("ipapi_is", "hosting", "medium", flags)
     if flags["is_abuser"]:
         return ProviderResult("ipapi_is", "inconclusive", "low", flags)
-    return ProviderResult("ipapi_is", "normal", "medium", flags)
+    return ProviderResult("ipapi_is", "clean", "medium", flags)
 
 
 def _check_iphub(config: CheckConfig, public_ip: str, timeout: float, now: str) -> ProviderResult:
@@ -273,7 +292,7 @@ def _check_iphub(config: CheckConfig, public_ip: str, timeout: float, now: str) 
     if block == 2:
         return ProviderResult("iphub", "inconclusive", "low", flags)
     if block == 0:
-        return ProviderResult("iphub", "normal", "medium", flags)
+        return ProviderResult("iphub", "clean", "medium", flags)
     return ProviderResult("iphub", "unknown", "none", flags, error="IPHub response did not include block")
 
 
@@ -291,7 +310,7 @@ def _check_ip_api(public_ip: str, timeout: float, now: str) -> ProviderResult:
         return ProviderResult("ip_api", "proxy", "medium", flags, rate_limited_until=rate_limited_until)
     if payload.get("hosting"):
         return ProviderResult("ip_api", "hosting", "medium", flags, rate_limited_until=rate_limited_until)
-    return ProviderResult("ip_api", "normal", "low", flags, rate_limited_until=rate_limited_until)
+    return ProviderResult("ip_api", "clean", "low", flags, rate_limited_until=rate_limited_until)
 
 
 def _check_abuseipdb(config: CheckConfig, public_ip: str, timeout: float, now: str) -> ProviderResult:
@@ -314,7 +333,7 @@ def _check_abuseipdb(config: CheckConfig, public_ip: str, timeout: float, now: s
     abuse_score = data.get("abuseConfidenceScore")
     if isinstance(abuse_score, int) and abuse_score > 0:
         return ProviderResult("abuseipdb", "inconclusive", "low", flags)
-    return ProviderResult("abuseipdb", "normal", "low", flags)
+    return ProviderResult("abuseipdb", "clean", "low", flags)
 
 
 def _classify(results: list[ProviderResult]) -> tuple[str, str, list[str]]:
@@ -325,13 +344,13 @@ def _classify(results: list[ProviderResult]) -> tuple[str, str, list[str]]:
             confidence = _best_confidence(result.confidence for result in usable if result.verdict == verdict)
             return verdict, confidence, sources
     inconclusive_sources = [result.provider for result in usable if result.verdict == "inconclusive"]
-    normal_sources = [result.provider for result in usable if result.verdict == "normal" and result.provider != "tor"]
+    clean_sources = [result.provider for result in usable if result.verdict == "clean" and result.provider != "tor"]
     if inconclusive_sources:
         return "inconclusive", "low", inconclusive_sources
-    if normal_sources:
-        return "normal", _best_confidence(result.confidence for result in usable if result.provider in normal_sources), normal_sources
-    if usable and all(result.provider == "tor" and result.verdict == "normal" for result in usable) and not any(result.error for result in results):
-        return "normal", "low", ["tor"]
+    if clean_sources:
+        return "clean", _best_confidence(result.confidence for result in usable if result.provider in clean_sources), clean_sources
+    if usable and all(result.provider == "tor" and result.verdict == "clean" for result in usable) and not any(result.error for result in results):
+        return "clean", "low", ["tor"]
     return "unknown", "none", []
 
 
@@ -345,20 +364,9 @@ def _best_confidence(values: Any) -> str:
 
 
 def _classified_result(config: CheckConfig, details: dict[str, Any], state: dict[str, Any]) -> CheckResult:
-    verdict = str(details.get("verdict", "unknown"))
-    fail_on_verdicts = set(_parse_csv(config.get("fail_on_verdicts")) or ["tor", "vpn", "proxy"])
-    if verdict == "inconclusive" and config.get_bool("fail_on_inconclusive", False):
-        return _result(config, CRIT, f"public IP reputation is inconclusive: {details.get('public_ip')}", details, state, ["reputation_inconclusive"])
-    if verdict == "unknown":
-        if config.get_bool("fail_on_unknown", False):
-            return _result(config, CRIT, f"public IP reputation is unknown: {details.get('public_ip')}", details, state, ["reputation_unknown"])
-        return CheckResult(
-            name=config.section,
-            status=OK,
-            message=f"public IP {details.get('public_ip')} reputation verdict is unknown",
-            details=details,
-            state=state,
-        )
+    verdict = _normalize_verdict(str(details.get("verdict", "unknown")))
+    details["verdict"] = verdict
+    fail_on_verdicts = set(_normalize_verdicts(_parse_csv(config.get("fail_on_verdicts")) or ["tor", "vpn", "proxy"]))
     if verdict in fail_on_verdicts:
         return _result(config, CRIT, f"public IP {details.get('public_ip')} reputation verdict is {verdict}", details, state, [f"{verdict}_detected"])
     return CheckResult(
@@ -382,7 +390,8 @@ def _details_from_cache(
     return {
         "public_ip": public_ip,
         "previous_public_ip": str(previous_state.get("public_ip", "")),
-        "verdict": str(reputation_cache.get("verdict", "unknown")),
+        "public_ip_interface": str(reputation_cache.get("public_ip_interface", "")),
+        "verdict": _normalize_verdict(str(reputation_cache.get("verdict", "unknown"))),
         "confidence": str(reputation_cache.get("confidence", "none")),
         "sources": ",".join(str(source) for source in sources) if isinstance(sources, list) else str(sources),
         "cache_hit": cache_hit,
@@ -410,9 +419,14 @@ def _result(
     return CheckResult(name=config.section, status=status, message=message, details=result_details, state=state)
 
 
-def _fetch_text(url: str, timeout: float, headers: dict[str, str] | None = None) -> str:
+def _fetch_text(
+    url: str,
+    timeout: float,
+    headers: dict[str, str] | None = None,
+    interface: str | None = None,
+) -> str:
     request = Request(url, headers={"User-Agent": "service-check", **(headers or {})})
-    with urlopen(request, timeout=timeout) as response:
+    with _bound_to_interface(interface), urlopen(request, timeout=timeout) as response:
         return response.read().decode("utf-8")
 
 
@@ -456,6 +470,54 @@ def _validate_ip(value: str) -> str:
     return str(parsed)
 
 
+def _validate_interface(name: str) -> None:
+    interface = name.strip()
+    if not interface:
+        raise ValueError("public_ip_interface is empty")
+    if not _interface_exists(interface):
+        raise PublicIpInterfaceError(f"network interface is not present: {interface}")
+    if not hasattr(socket, "SO_BINDTODEVICE"):
+        raise ValueError("public_ip_interface requires Linux SO_BINDTODEVICE support")
+
+
+def _interface_exists(name: str) -> bool:
+    sysfs_path = f"/sys/class/net/{name}"
+    if os.path.exists(sysfs_path):
+        return True
+    try:
+        return any(interface_name == name for _index, interface_name in socket.if_nameindex())
+    except OSError:
+        return False
+
+
+@contextlib.contextmanager
+def _bound_to_interface(interface: str | None) -> Any:
+    if not interface:
+        yield
+        return
+
+    original_socket = socket.socket
+    bind_option = socket.SO_BINDTODEVICE
+    interface_bytes = interface.encode("utf-8") + b"\0"
+
+    def bound_socket(*args: Any, **kwargs: Any) -> socket.socket:
+        sock = original_socket(*args, **kwargs)
+        try:
+            family = args[0] if args else kwargs.get("family", socket.AF_INET)
+            if family in {socket.AF_INET, socket.AF_INET6}:
+                sock.setsockopt(socket.SOL_SOCKET, bind_option, interface_bytes)
+        except OSError:
+            sock.close()
+            raise
+        return sock
+
+    socket.socket = bound_socket
+    try:
+        yield
+    finally:
+        socket.socket = original_socket
+
+
 def _is_ip(value: str) -> bool:
     try:
         ip_address(value)
@@ -468,6 +530,14 @@ def _parse_csv(value: str | None) -> list[str]:
     if not value:
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _normalize_verdict(value: str) -> str:
+    return value.strip().lower()
+
+
+def _normalize_verdicts(values: list[str]) -> list[str]:
+    return [_normalize_verdict(value) for value in values]
 
 
 def _can_use_stale(config: CheckConfig, reputation_cache: Any, public_ip: str, now: str) -> bool:
