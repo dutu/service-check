@@ -392,6 +392,7 @@ Alert behavior:
 | --- | --- |
 | `OK -> CRIT` | Notify after `fail_after` failed runs. |
 | `WARN -> CRIT` | Notify after `fail_after` failed runs. |
+| `CRIT -> WARN` | Notify the degraded state and keep the check unrecovered until `OK`. |
 | `CRIT -> OK` | Notify recovery if enabled. |
 | `CRIT -> CRIT` | Do not repeat unless `notify_repeat_after_minutes` elapsed. |
 | problem code changes | Notify immediately after `fail_after` is satisfied. |

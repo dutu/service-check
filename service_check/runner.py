@@ -269,8 +269,10 @@ def process_result(
     now = _utc_now()
     previous = checks_state.get(check_config.section, {})
     notify_on_warn = check_config.get_bool("notify_on_warn", False)
-    is_problem = result.status in {CRIT, UNKNOWN} or (result.status == "WARN" and notify_on_warn)
     was_problem = previous.get("last_problem", False)
+    is_problem = result.status in {CRIT, UNKNOWN} or (
+        result.status == WARN and (notify_on_warn or was_problem)
+    )
     previous_result = previous.get("last_result")
     previous_status = previous_result.get("status") if isinstance(previous_result, dict) else None
     previous_details = previous_result.get("details") if isinstance(previous_result, dict) else None
