@@ -60,17 +60,55 @@ CHECK_KEYS = {
         "min_in_peers",
         "require_rpc",
     },
+    "public_ip_reputation": {
+        "public_ip",
+        "public_ip_provider",
+        "public_ip_timeout_seconds",
+        "providers",
+        "reputation_cache_ttl_seconds",
+        "tor_cache_ttl_seconds",
+        "tor_exit_list_url",
+        "use_stale_on_provider_failure",
+        "max_stale_ttl_seconds",
+        "fail_on_verdicts",
+        "fail_on_inconclusive",
+        "fail_on_unknown",
+        "ipapi_is_api_key",
+        "iphub_api_key",
+        "abuseipdb_api_key",
+    },
 }
 REQUIRED_CHECK_KEYS = {
     "tcp_port": {"host", "port"},
     "github_release_update": set(),
     "monerod": set(),
+    "public_ip_reputation": set(),
 }
-BOOL_KEYS = {"enabled", "notify_on_recovery", "notify_on_warn", "notify_on_first_success", "require_rpc"}
-INT_KEYS = {"retries", "fail_after", "port", "sync_stall_seconds", "min_out_peers", "min_in_peers"}
+BOOL_KEYS = {
+    "enabled",
+    "notify_on_recovery",
+    "notify_on_warn",
+    "notify_on_first_success",
+    "require_rpc",
+    "use_stale_on_provider_failure",
+    "fail_on_inconclusive",
+    "fail_on_unknown",
+}
+INT_KEYS = {
+    "retries",
+    "fail_after",
+    "port",
+    "sync_stall_seconds",
+    "min_out_peers",
+    "min_in_peers",
+    "reputation_cache_ttl_seconds",
+    "tor_cache_ttl_seconds",
+    "max_stale_ttl_seconds",
+}
 FLOAT_KEYS = {
     "interval_minutes",
     "timeout_seconds",
+    "public_ip_timeout_seconds",
     "retry_delay_seconds",
     "notify_repeat_after_minutes",
     "max_run_seconds",
