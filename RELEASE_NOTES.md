@@ -1,12 +1,17 @@
 # Release Notes
 
+## service-check 0.5.0
+
+### Changed
+
+- Consolidated the main example config by making `examples/service-check.ini` production-safe and using it as the installer source.
+
 ## service-check 0.4.0
 
 ### Added
 
 - Added a generic `ping` check for ICMP reachability monitoring.
 
-**Full Changelog**: https://github.com/dutu/service-check/compare/v0.3.1...v0.4.0
 
 ## service-check 0.3.1
 
