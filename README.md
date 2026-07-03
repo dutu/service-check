@@ -191,7 +191,7 @@ Typical intervals:
 
 | Interval | Typical Checks |
 | --- | --- |
-| `1` | TCP ports, local RPC reachability, wallet RPC |
+| `1` | TCP ports, SOCKS proxy functionality, local RPC reachability, wallet RPC |
 | `5` | service sync health, WireGuard peers, HTTP JSON checks |
 | `30` | full sync checks, Electrs, update checks, less volatile services |
 

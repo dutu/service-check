@@ -45,6 +45,16 @@ COMMON_CHECK_KEYS = {
 DYNAMIC_CHECK_KEY_PREFIXES = ("failure_message.",)
 CHECK_KEYS = {
     "tcp_port": {"host", "port"},
+    "socks_proxy": {
+        "host",
+        "port",
+        "proxy_host",
+        "proxy_port",
+        "target_host",
+        "target_port",
+        "username",
+        "password",
+    },
     "github_release_update": {
         "repository",
         "repo",
@@ -79,6 +89,7 @@ CHECK_KEYS = {
 }
 REQUIRED_CHECK_KEYS = {
     "tcp_port": {"host", "port"},
+    "socks_proxy": {"target_host", "target_port"},
     "github_release_update": set(),
     "monerod": set(),
     "public_ip_reputation": set(),
@@ -95,6 +106,8 @@ INT_KEYS = {
     "retries",
     "fail_after",
     "port",
+    "proxy_port",
+    "target_port",
     "sync_stall_seconds",
     "min_out_peers",
     "min_in_peers",
@@ -192,6 +205,7 @@ def validate_config(path: str, config_dir: str | None = None) -> list[str]:
         allowed_keys = COMMON_CHECK_KEYS | CHECK_KEYS[check_name]
         issues.extend(_unknown_key_issues(section, values, allowed_keys))
         issues.extend(_missing_key_issues(section, values, REQUIRED_CHECK_KEYS[check_name]))
+        issues.extend(_custom_missing_key_issues(section, check_name, values))
         issues.extend(_typed_value_issues(section, values))
 
     return issues
@@ -298,6 +312,22 @@ def _missing_key_issues(
         for key in sorted(required_keys)
         if not values.get(key, "").strip()
     ]
+
+
+def _custom_missing_key_issues(
+    section: str,
+    check_name: str,
+    values: configparser.SectionProxy,
+) -> list[str]:
+    if check_name != "socks_proxy":
+        return []
+
+    issues = []
+    if not values.get("proxy_host", "").strip() and not values.get("host", "").strip():
+        issues.append(f"[{section}] missing required key: proxy_host or host")
+    if not values.get("proxy_port", "").strip() and not values.get("port", "").strip():
+        issues.append(f"[{section}] missing required key: proxy_port or port")
+    return issues
 
 
 def _typed_value_issues(section: str, values: configparser.SectionProxy) -> list[str]:
