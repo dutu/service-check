@@ -44,6 +44,7 @@ COMMON_CHECK_KEYS = {
 }
 DYNAMIC_CHECK_KEY_PREFIXES = ("failure_message.",)
 CHECK_KEYS = {
+    "ping": {"host", "count"},
     "tcp_port": {"host", "port"},
     "socks_proxy": {
         "host",
@@ -88,6 +89,7 @@ CHECK_KEYS = {
     },
 }
 REQUIRED_CHECK_KEYS = {
+    "ping": {"host"},
     "tcp_port": {"host", "port"},
     "socks_proxy": {"target_host", "target_port"},
     "github_release_update": set(),
@@ -105,6 +107,7 @@ BOOL_KEYS = {
 INT_KEYS = {
     "retries",
     "fail_after",
+    "count",
     "port",
     "proxy_port",
     "target_port",
