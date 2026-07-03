@@ -506,7 +506,7 @@ The installer performs the normal deployment flow:
 - installs the package into the virtual environment
 - links `/usr/local/bin/service-check` to the virtualenv command
 - creates `/etc/service-check`, `/etc/service-check/service-check.ini.d`, and `/var/lib/service-check`
-- copies production config with non-overwrite behavior
+- copies the reference config with non-overwrite behavior
 - installs check examples as inactive `.ini.skip` drop-ins with non-overwrite behavior
 - repairs the old local-dev relative state paths if found in `/etc/service-check/service-check.ini`
 - disables the obsolete default `example_tcp_open` drop-in if it still exists unchanged
@@ -530,7 +530,7 @@ sudo python3 -m venv /opt/service-check-venv
 sudo /opt/service-check-venv/bin/python -m pip install .
 sudo ln -sfn /opt/service-check-venv/bin/service-check /usr/local/bin/service-check
 sudo mkdir -p /etc/service-check/service-check.ini.d /var/lib/service-check
-sudo cp -n examples/service-check.production.ini /etc/service-check/service-check.ini
+sudo cp -n examples/service-check.ini /etc/service-check/service-check.ini
 sudo cp -n examples/service-check.ini.d/10-version.ini /etc/service-check/service-check.ini.d/10-version.ini
 for file in service_check/checks/*/*.example.ini; do sudo cp -n "$file" "/etc/service-check/service-check.ini.d/$(basename "$file" .example.ini).ini.skip"; done
 sudo cp systemd/service-check.service /etc/systemd/system/service-check.service

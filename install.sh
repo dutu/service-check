@@ -85,7 +85,7 @@ install_runtime_files() {
 
   log "Installing default config without overwriting existing files"
   if [[ ! -f "${CONFIG_DIR}/service-check.ini" ]]; then
-    install -m 0644 "${SRC_DIR}/examples/service-check.production.ini" "${CONFIG_DIR}/service-check.ini"
+    install -m 0644 "${SRC_DIR}/examples/service-check.ini" "${CONFIG_DIR}/service-check.ini"
   else
     repair_known_bad_config_defaults "${CONFIG_DIR}/service-check.ini"
   fi
