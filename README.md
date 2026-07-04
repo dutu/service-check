@@ -406,6 +406,10 @@ Each check directory owns its own README and example config. Check docs cover
 required config keys, optional config keys, returned template placeholders, and
 local dependencies.
 
+Use [`heartbeat`](service_check/checks/heartbeat) with an Uptime Kuma Push
+monitor when you want the dashboard to show that the machine and scheduled
+`service-check` runner are still alive.
+
 ## Notification Command
 
 `service-check` delegates alert delivery to an existing local command.

@@ -44,6 +44,7 @@ COMMON_CHECK_KEYS = {
 }
 DYNAMIC_CHECK_KEY_PREFIXES = ("failure_message.",)
 CHECK_KEYS = {
+    "heartbeat": set(),
     "ping": {"host", "count"},
     "tcp_port": {"host", "port"},
     "socks_proxy": {
@@ -89,6 +90,7 @@ CHECK_KEYS = {
     },
 }
 REQUIRED_CHECK_KEYS = {
+    "heartbeat": set(),
     "ping": {"host"},
     "tcp_port": {"host", "port"},
     "socks_proxy": {"target_host", "target_port"},
