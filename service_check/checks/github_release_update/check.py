@@ -20,9 +20,11 @@ CHECK_METADATA = {
         "problem_code": "Primary machine-readable problem reason.",
         "problem_codes": "List of machine-readable problem reasons.",
         "current_version": "Installed or configured current version.",
+        "current_version_tag": "Installed or configured current version formatted as a GitHub-style tag.",
         "expected_version": "Expected/latest version used for comparison.",
         "latest_version": "Latest version resolved from config or GitHub.",
         "available_version": "Alias for latest_version for notification templates.",
+        "available_version_tag": "Alias for latest_version formatted as a GitHub-style tag.",
         "repository": "GitHub repository in owner/name form.",
         "error": "Validation/fetch/parse error text; present on UNKNOWN results.",
     },
@@ -36,9 +38,11 @@ def run(config: CheckConfig) -> CheckResult:
     latest_version = expected_version
     details = {
         "current_version": current_version,
+        "current_version_tag": _format_version_tag(current_version),
         "expected_version": expected_version or "",
         "latest_version": "",
         "available_version": "",
+        "available_version_tag": "",
         "repository": repository,
     }
 
@@ -67,6 +71,7 @@ def run(config: CheckConfig) -> CheckResult:
     details["latest_version"] = latest_version
     details["available_version"] = latest_version
     details["expected_version"] = latest_version
+    details["available_version_tag"] = _format_version_tag(latest_version)
 
     try:
         comparison = _compare_versions(current_version, latest_version)
@@ -83,21 +88,27 @@ def run(config: CheckConfig) -> CheckResult:
         return CheckResult(
             name=config.section,
             status=WARN,
-            message=f"service-check {current_version} is behind available version {latest_version}",
+            message=(
+                f"service-check {details['current_version_tag']} is behind "
+                f"available version {details['available_version_tag']}"
+            ),
             details={**details, **_problem("update_available")},
         )
     if comparison > 0:
         return CheckResult(
             name=config.section,
             status=WARN,
-            message=f"service-check {current_version} is newer than available version {latest_version}",
+            message=(
+                f"service-check {details['current_version_tag']} is newer than "
+                f"available version {details['available_version_tag']}"
+            ),
             details={**details, **_problem("version_newer")},
         )
 
     return CheckResult(
         name=config.section,
         status=OK,
-        message=f"service-check {current_version} is up-to-date",
+        message=f"service-check {details['current_version_tag']} is up-to-date",
         details=details,
     )
 
@@ -133,6 +144,11 @@ def _fetch_latest_release_version(repository: str, api_url: str | None, timeout:
 
 def _normalize_version(version: str) -> str:
     return version.strip().removeprefix("v").removeprefix("V")
+
+
+def _format_version_tag(version: str) -> str:
+    normalized = _normalize_version(version)
+    return f"v{normalized}" if normalized else ""
 
 
 def _compare_versions(left: str, right: str) -> int:

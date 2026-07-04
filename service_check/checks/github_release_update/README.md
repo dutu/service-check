@@ -48,9 +48,11 @@ development builds.
 The check returns these `details` keys for message templates:
 
 - `current_version`
+- `current_version_tag`
 - `expected_version`
 - `latest_version`
 - `available_version`
+- `available_version_tag`
 - `repository`
 - `problem_code`, only on failure or warning
 - `problem_codes`, only on failure or warning
@@ -75,10 +77,10 @@ interval_minutes=1440
 notify_repeat_after_minutes=1440
 notify_on_warn=1
 notify_on_first_success=1
-success_message=service-check {current_version} is up-to-date
+success_message=service-check {current_version_tag} is up-to-date
 failure_message=service-check version check problem: {message}
-failure_message.update_available=service-check new version available: current={current_version}, available={available_version}
-failure_message.version_newer=service-check local version {current_version} is newer than available {available_version}
+failure_message.update_available=service-check new version available: current={current_version_tag}, available={available_version_tag}
+failure_message.version_newer=service-check local version {current_version_tag} is newer than available {available_version_tag}
 failure_message.invalid_config=service-check version check has invalid GitHub config for {repository}: {error}
 failure_message.fetch_failed=service-check could not fetch latest release for {repository}: {error}
 failure_message.invalid_version=service-check version check got invalid version data: current={current_version}, available={available_version}, error={error}
