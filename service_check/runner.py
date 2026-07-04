@@ -189,7 +189,8 @@ def is_due(
     except ValueError:
         return True
 
-    return (now - previous_run).total_seconds() >= interval_minutes * 60
+    interval_seconds = interval_minutes * 60
+    return _interval_slot(now, interval_seconds) > _interval_slot(previous_run, interval_seconds)
 
 
 def run_check_with_retries(
@@ -496,6 +497,12 @@ def _seconds_since(previous_iso: str | None, now_iso: str) -> int:
     except ValueError:
         return 10**9
     return int((now - previous).total_seconds())
+
+
+def _interval_slot(moment: datetime, interval_seconds: float) -> int:
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return int(moment.timestamp() // interval_seconds)
 
 
 def _elapsed_ms(started: float) -> int:

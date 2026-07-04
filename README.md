@@ -181,11 +181,17 @@ host=127.0.0.1
 port=50001
 ```
 
-The runner decides whether each check is due from state:
+The runner decides whether each check is due from state using wall-clock interval
+buckets:
 
 ```text
-now - last_run_at >= interval_minutes * 60
+floor(now / interval) > floor(last_run_at / interval)
 ```
+
+This avoids skipped pushes when a one-minute timer fires slightly before a full
+60 seconds has elapsed since the previous check completed. A check with
+`interval_minutes=1` is due once per minute bucket, not exactly 60 seconds after
+the previous completion.
 
 Typical intervals:
 

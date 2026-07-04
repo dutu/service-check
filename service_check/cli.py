@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 from service_check import __version__
@@ -217,7 +217,9 @@ def compute_next_due_at(last_run_at: str, interval_minutes: float) -> str:
         previous_run = datetime.fromisoformat(last_run_at.replace("Z", "+00:00"))
     except ValueError:
         return "-"
-    return format_local_time((previous_run + timedelta(minutes=interval_minutes)).isoformat())
+    interval_seconds = interval_minutes * 60
+    next_slot = (int(previous_run.timestamp() // interval_seconds) + 1) * interval_seconds
+    return format_local_time(datetime.fromtimestamp(next_slot, timezone.utc).isoformat())
 
 
 def format_local_time(value: str) -> str:

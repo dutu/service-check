@@ -25,6 +25,11 @@ The runner preserves existing query parameters in `kuma_push_url`, then adds
 `success_message` when configured; otherwise it uses the built-in heartbeat
 message.
 
+The runner schedules checks by wall-clock interval buckets rather than requiring
+a full elapsed interval since the previous completion. With a one-minute systemd
+timer and `interval_minutes=1`, a heartbeat is due once in each minute bucket, so
+normal timer jitter does not cause skipped pushes.
+
 ## Details
 
 The check returns these `details` keys for message templates:
