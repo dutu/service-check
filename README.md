@@ -445,6 +445,12 @@ kuma_push_url=https://kuma.example.com/api/push/electrs-token
 failure_message=Electrs TCP port {host}:{port} is down: {error}
 ```
 
+The runner preserves existing query parameters in `kuma_push_url`, then adds
+`status=up|down` and `msg=<rendered message>`. For `OK` results, `msg` uses
+`success_message` when configured; otherwise it uses the check's built-in
+message. Problem results use `failure_message`, `failure_message.<problem_code>`,
+or the check's built-in message.
+
 Per-check mapping:
 
 | Check Status | Kuma Push |
