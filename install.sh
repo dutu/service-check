@@ -161,6 +161,7 @@ enable_systemd_timer() {
   log "Reloading systemd and enabling timer"
   systemctl daemon-reload
   systemctl enable --now service-check.timer
+  systemctl restart service-check.timer
 }
 
 verify_installation() {

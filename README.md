@@ -666,11 +666,18 @@ Description=Run service-check watchdog every minute
 [Timer]
 OnBootSec=1min
 OnUnitActiveSec=1min
+AccuracySec=1s
+RandomizedDelaySec=0
 Unit=service-check.service
 
 [Install]
 WantedBy=timers.target
 ```
+
+`AccuracySec=1s` is intentional. systemd timers otherwise allow coalescing for
+power efficiency, which can delay a nominal one-minute timer enough for strict
+Kuma Push monitors to report missed heartbeats. `RandomizedDelaySec=0` keeps the
+local schedule deterministic.
 
 ## Journal Logs
 
