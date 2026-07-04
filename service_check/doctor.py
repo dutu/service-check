@@ -220,16 +220,21 @@ def _check_kuma_urls(loaded: LoadedConfig) -> list[DoctorResult]:
     results = []
     for check_config in loaded.checks:
         kuma_url = check_config.get("kuma_push_url")
-        if not kuma_url:
-            continue
-        parsed = urlparse(kuma_url)
-        if parsed.scheme in {"http", "https"} and parsed.netloc:
-            results.append(DoctorResult(OK, f"[{check_config.section}] kuma_push_url shape valid"))
-        else:
-            results.append(DoctorResult(ERROR, f"[{check_config.section}] kuma_push_url must be http(s): {kuma_url}"))
+        if kuma_url:
+            results.append(_check_url_shape(check_config.section, "kuma_push_url", kuma_url))
+        heartbeat_url = check_config.get("heartbeat_url") if check_config.check == "kuma_heartbeat" else None
+        if heartbeat_url:
+            results.append(_check_url_shape(check_config.section, "heartbeat_url", heartbeat_url))
     if not results:
-        results.append(DoctorResult(OK, "no kuma_push_url configured"))
+        results.append(DoctorResult(OK, "no Kuma URLs configured"))
     return results
+
+
+def _check_url_shape(section: str, key: str, url: str) -> DoctorResult:
+    parsed = urlparse(url)
+    if parsed.scheme in {"http", "https"} and parsed.netloc:
+        return DoctorResult(OK, f"[{section}] {key} shape valid")
+    return DoctorResult(ERROR, f"[{section}] {key} must be http(s): {url}")
 
 
 def _check_systemd_units() -> list[DoctorResult]:

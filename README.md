@@ -412,9 +412,11 @@ Each check directory owns its own README and example config. Check docs cover
 required config keys, optional config keys, returned template placeholders, and
 local dependencies.
 
-Use [`heartbeat`](service_check/checks/heartbeat) with an Uptime Kuma Push
-monitor when you want the dashboard to show that the machine and scheduled
-`service-check` runner are still alive.
+Use [`kuma_heartbeat`](service_check/checks/kuma_heartbeat) when you want a
+local check to prove both that the scheduled `service-check` runner is alive and
+that this machine can successfully push to Uptime Kuma. Unlike generic
+`kuma_push_url` side effects, `kuma_heartbeat` returns `CRIT` when the push
+fails, so local notifications can alert through `notify_cmd`.
 
 ## Notification Command
 
@@ -471,6 +473,26 @@ Per-check mapping:
 | `UNKNOWN` | down |
 
 If a section has no `kuma_push_url`, the runner skips Kuma for that check.
+
+For a machine heartbeat that should fail locally when Kuma is unreachable, use
+the dedicated `kuma_heartbeat` check with `heartbeat_url` instead of setting
+`kuma_push_url`:
+
+```ini
+[machine_kuma_heartbeat]
+enabled=1
+check=kuma_heartbeat
+interval_minutes=1
+heartbeat_url=https://kuma.example.com/api/push/service-check-heartbeat-token
+heartbeat_message={hostname} service-check Kuma heartbeat OK
+success_message={pushed_message}
+failure_message={hostname} service-check cannot push to Kuma: {error}
+notify_on_first_success=1
+```
+
+Do not also set `kuma_push_url` on this section. `heartbeat_url` is the push
+being tested by the check; `kuma_push_url` is the generic runner-level side
+effect for normal checks.
 
 ## Versioning And Updates
 

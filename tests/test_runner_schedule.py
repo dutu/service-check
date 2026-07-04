@@ -23,8 +23,8 @@ class RunnerScheduleTest(unittest.TestCase):
 
     def test_zero_interval_is_due_every_invocation(self) -> None:
         check_config = CheckConfig(
-            section="machine_heartbeat",
-            check="heartbeat",
+            section="machine_kuma_heartbeat",
+            check="kuma_heartbeat",
             options={"interval_minutes": "0"},
         )
         previous = {"last_run_at": "2026-07-04T15:39:50Z"}
@@ -34,8 +34,8 @@ class RunnerScheduleTest(unittest.TestCase):
 
     def test_next_wall_clock_bucket_is_due_even_before_full_elapsed_interval(self) -> None:
         check_config = CheckConfig(
-            section="machine_heartbeat",
-            check="heartbeat",
+            section="machine_kuma_heartbeat",
+            check="kuma_heartbeat",
             options={"interval_minutes": "1"},
         )
         previous = {"last_run_at": "2026-07-04T15:38:40Z"}
@@ -45,8 +45,8 @@ class RunnerScheduleTest(unittest.TestCase):
 
     def test_same_wall_clock_bucket_is_not_due_twice(self) -> None:
         check_config = CheckConfig(
-            section="machine_heartbeat",
-            check="heartbeat",
+            section="machine_kuma_heartbeat",
+            check="kuma_heartbeat",
             options={"interval_minutes": "1"},
         )
         previous = {"last_run_at": "2026-07-04T15:39:10Z"}
