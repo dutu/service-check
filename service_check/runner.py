@@ -419,9 +419,18 @@ def log_check_state_change(
     current_status = _state_result_status(current_result)
     previous_problem_code = _state_result_problem_code(previous_result)
     current_problem_code = _state_result_problem_code(current_result)
-    changed_keys = _changed_state_keys(previous, current)
     previous_run_at = previous.get("last_run_at")
     current_run_at = current.get("last_run_at")
+    semantic_changes = _semantic_state_changes(
+        previous_status,
+        current_status,
+        bool(previous.get("last_problem", False)),
+        bool(current.get("last_problem", False)),
+        previous_problem_code,
+        current_problem_code,
+    )
+    if not semantic_changes:
+        return
 
     LOGGER.info(
         "check_state_change section=%s check=%s changed=%s status=%s->%s problem=%s->%s "
@@ -430,7 +439,7 @@ def log_check_state_change(
         "last_notification_at=%s->%s last_success_notification_at=%s->%s check_state_changed=%s",
         check_config.section,
         check_config.check,
-        ",".join(changed_keys) if changed_keys else "-",
+        ",".join(semantic_changes),
         previous_status or "-",
         current_status or "-",
         previous.get("last_problem", "-"),
@@ -452,9 +461,22 @@ def log_check_state_change(
     )
 
 
-def _changed_state_keys(previous: dict[str, Any], current: dict[str, Any]) -> list[str]:
-    keys = sorted(set(previous) | set(current))
-    return [key for key in keys if previous.get(key) != current.get(key)]
+def _semantic_state_changes(
+    previous_status: str | None,
+    current_status: str | None,
+    previous_problem: bool,
+    current_problem: bool,
+    previous_problem_code: str | None,
+    current_problem_code: str | None,
+) -> list[str]:
+    changes = []
+    if previous_status != current_status:
+        changes.append("status")
+    if previous_problem != current_problem:
+        changes.append("problem")
+    if previous_problem_code != current_problem_code:
+        changes.append("problem_code")
+    return changes
 
 
 def _state_result_status(value: Any) -> str | None:

@@ -25,20 +25,42 @@ class RunnerStateLoggingTest(unittest.TestCase):
                 _global_config(),
                 _defaults(),
                 _check_config(),
+                CheckResult("wallet_rpc", CRIT, "wallet RPC still down", details={"problem_code": "port_unreachable"}),
+                checks_state,
+                dry_run=False,
+                no_notify=False,
+                duration_ms=11,
+            )
+            process_result(
+                _global_config(),
+                _defaults(),
+                _check_config(),
                 CheckResult("wallet_rpc", OK, "wallet RPC reachable"),
                 checks_state,
                 dry_run=False,
                 no_notify=False,
                 duration_ms=8,
             )
+            process_result(
+                _global_config(),
+                _defaults(),
+                _check_config(),
+                CheckResult("wallet_rpc", OK, "wallet RPC reachable again"),
+                checks_state,
+                dry_run=False,
+                no_notify=False,
+                duration_ms=7,
+            )
 
         state_change_logs = [entry for entry in logs.output if "check_state_change" in entry]
         self.assertEqual(len(state_change_logs), 2)
         self.assertIn("section=wallet_rpc", state_change_logs[0])
+        self.assertIn("changed=status,problem,problem_code", state_change_logs[0])
         self.assertIn("status=-->CRIT", state_change_logs[0])
         self.assertIn("previous_run_at=-", state_change_logs[0])
         self.assertIn("seconds_since_previous_run=-", state_change_logs[0])
         self.assertIn("problem_code=-->port_unreachable", state_change_logs[0])
+        self.assertIn("changed=status,problem,problem_code", state_change_logs[1])
         self.assertIn("status=CRIT->OK", state_change_logs[1])
         self.assertIn("problem=True->False", state_change_logs[1])
         self.assertIn("problem_code=port_unreachable->-", state_change_logs[1])

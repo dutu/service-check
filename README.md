@@ -503,10 +503,10 @@ Useful log markers:
 - `checks_selected`: due or explicitly selected sections
 - `check_retry`: retry attempts
 - `check_result`: result, duration, notification decision, Kuma decision, rendered message
-- `check_state_change`: per-check persisted state changes, including status,
-  problem state, problem code, failure count, run timestamp, notification
-  timestamps, previous/current run time, seconds since the previous run, and
-  whether check-specific state changed
+- `check_state_change`: semantic per-check transitions only: status, problem
+  state, or problem code changes. Includes failure count, previous/current run
+  time, seconds since the previous run, notification timestamps, and whether
+  check-specific state changed.
 - `state_load` / `state_save`: state path and tracked check count
 
 The runner does not log full notification commands or Kuma push URLs because
