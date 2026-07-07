@@ -12,7 +12,16 @@ from service_check.models import CheckConfig, CheckDefaults, GlobalConfig, Loade
 
 DEFAULT_CONFIG_PATH = "/etc/service-check/service-check.ini"
 LOGGER = logging.getLogger(__name__)
-GLOBAL_KEYS = {"hostname", "state_file", "lock_file", "max_run_seconds", "max_lock_hold_minutes"}
+GLOBAL_KEYS = {
+    "hostname",
+    "state_file",
+    "lock_file",
+    "max_run_seconds",
+    "max_lock_hold_minutes",
+    "log_level",
+    "show_results",
+}
+LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 DEFAULT_KEYS = {
     "notify_cmd",
     "interval_minutes",
@@ -100,6 +109,7 @@ REQUIRED_CHECK_KEYS = {
 }
 BOOL_KEYS = {
     "enabled",
+    "show_results",
     "notify_on_recovery",
     "notify_on_warn",
     "notify_on_first_success",
@@ -133,7 +143,7 @@ FLOAT_KEYS = {
 
 def load_config(path: str, config_dir: str | None = None) -> LoadedConfig:
     parser, read_files = read_config_parser(path, config_dir)
-    LOGGER.info("config_loaded files=%s", ",".join(read_files))
+    LOGGER.debug("config_loaded files=%s", ",".join(read_files))
 
     global_section = parser["global"] if parser.has_section("global") else {}
     default_section = parser["default"] if parser.has_section("default") else {}
@@ -142,6 +152,8 @@ def load_config(path: str, config_dir: str | None = None) -> LoadedConfig:
     lock_file = _get(global_section, "lock_file", f"{state_file}.lock")
     max_run_seconds = float(_get(global_section, "max_run_seconds", "50"))
     max_lock_hold_minutes = float(_get(global_section, "max_lock_hold_minutes", "2"))
+    log_level = _get(global_section, "log_level", "INFO").strip().upper()
+    show_results = _get_bool(global_section, "show_results", False)
 
     global_config = GlobalConfig(
         hostname=hostname,
@@ -149,6 +161,8 @@ def load_config(path: str, config_dir: str | None = None) -> LoadedConfig:
         lock_file=lock_file,
         max_run_seconds=max_run_seconds,
         max_lock_hold_minutes=max_lock_hold_minutes,
+        log_level=log_level,
+        show_results=show_results,
     )
     defaults = CheckDefaults(
         notify_cmd=_get_optional(default_section, "notify_cmd"),
@@ -224,6 +238,8 @@ def render_effective_config(loaded: LoadedConfig) -> str:
         f"lock_file={loaded.global_config.lock_file}",
         f"max_run_seconds={_format_number(loaded.global_config.max_run_seconds)}",
         f"max_lock_hold_minutes={_format_number(loaded.global_config.max_lock_hold_minutes)}",
+        f"log_level={loaded.global_config.log_level}",
+        f"show_results={_format_bool(loaded.global_config.show_results)}",
         "",
         "[default]",
         *_render_options(_defaults_as_options(loaded.defaults)),
@@ -350,6 +366,8 @@ def _typed_value_issues(section: str, values: configparser.SectionProxy) -> list
             float(values[key])
         except ValueError:
             issues.append(f"[{section}] key {key} must be a number")
+    if "log_level" in values and values["log_level"].strip().upper() not in LOG_LEVELS:
+        issues.append(f"[{section}] key log_level must be one of: {', '.join(sorted(LOG_LEVELS))}")
     return issues
 
 

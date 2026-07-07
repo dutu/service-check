@@ -56,10 +56,7 @@ def main(argv: list[str] | None = None) -> int:
         print(__version__)
         return 0
 
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format="%(levelname)s: %(message)s",
-    )
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING, format="%(levelname)s: %(message)s")
 
     try:
         if args.describe_check:
@@ -78,10 +75,11 @@ def main(argv: list[str] | None = None) -> int:
                     logging.error("%s", issue)
                 return 2
             if args.validate_config and not args.print_config:
-                logging.info("configuration OK")
+                print("configuration OK")
                 return 0
 
         loaded = load_config(args.config, args.config_dir)
+        configure_logging(loaded.global_config.log_level, force_debug=args.verbose)
         if args.print_config:
             print(render_effective_config(loaded))
             return 0
@@ -95,6 +93,7 @@ def main(argv: list[str] | None = None) -> int:
             run_all=run_all,
             dry_run=args.dry_run,
             no_notify=args.no_notify,
+            show_results=loaded.global_config.show_results or args.results_for is not None or args.dry_run,
         )
     except Exception as exc:  # noqa: BLE001 - CLI should convert failures to exit code.
         logging.error("%s", exc)
@@ -107,6 +106,12 @@ def resolve_selection(check_section: str | None, run_all: bool, results_for: str
     if results_for == "all":
         return None, True
     return results_for, False
+
+
+def configure_logging(log_level: str, force_debug: bool = False) -> None:
+    level_name = "DEBUG" if force_debug else log_level.strip().upper()
+    level = getattr(logging, level_name, logging.INFO)
+    logging.getLogger().setLevel(level)
 
 
 def describe_check(check_name: str) -> int:

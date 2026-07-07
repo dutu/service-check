@@ -22,9 +22,10 @@ def run(
     run_all: bool = False,
     dry_run: bool = False,
     no_notify: bool = False,
+    show_results: bool = False,
 ) -> int:
     started = time.monotonic()
-    LOGGER.info(
+    LOGGER.debug(
         "run_start enabled_checks=%d check_section=%s run_all=%s dry_run=%s no_notify=%s state_file=%s",
         len(loaded.checks),
         check_section or "-",
@@ -50,7 +51,7 @@ def run(
         )
         if not selected:
             return handle_no_checks(check_section)
-        LOGGER.info("checks_selected count=%d sections=%s", len(selected), _format_sections(selected))
+        LOGGER.debug("checks_selected count=%d sections=%s", len(selected), _format_sections(selected))
         worst_status = process_selected_checks(
             selected=selected,
             checks_state=state.setdefault("checks", {}),
@@ -60,6 +61,7 @@ def run(
             no_notify=no_notify,
             max_run_seconds=loaded.global_config.max_run_seconds,
             save_state=None,
+            show_results=show_results,
         )
     else:
         with store.locked(save=False) as state:
@@ -72,7 +74,7 @@ def run(
             )
             if not selected:
                 return handle_no_checks(check_section)
-            LOGGER.info("checks_selected count=%d sections=%s", len(selected), _format_sections(selected))
+            LOGGER.debug("checks_selected count=%d sections=%s", len(selected), _format_sections(selected))
             worst_status = process_selected_checks(
                 selected=selected,
                 checks_state=state.setdefault("checks", {}),
@@ -82,10 +84,11 @@ def run(
                 no_notify=no_notify,
                 max_run_seconds=loaded.global_config.max_run_seconds,
                 save_state=lambda: store.save(state),
+                show_results=show_results,
             )
 
     exit_code = 1 if worst_status in {CRIT, UNKNOWN} else 0
-    LOGGER.info(
+    LOGGER.debug(
         "run_end worst_status=%s exit_code=%d duration_ms=%d",
         worst_status,
         exit_code,
@@ -103,12 +106,13 @@ def process_selected_checks(
     no_notify: bool,
     max_run_seconds: float,
     save_state: Callable[[], None] | None,
+    show_results: bool = False,
 ) -> str:
     run_started = time.monotonic()
     worst_status = OK
     for index, check_config in enumerate(selected):
         if index > 0 and _budget_exhausted(run_started, max_run_seconds):
-            LOGGER.info(
+            LOGGER.warning(
                 "run_budget_exhausted max_run_seconds=%s processed=%d remaining=%d",
                 _format_number(max_run_seconds),
                 index,
@@ -138,7 +142,8 @@ def process_selected_checks(
         )
         if save_state:
             save_state()
-        print(f"{check_config.section}: {result.status} - {result.message}")
+        if show_results:
+            print(f"{check_config.section}: {result.status} - {result.message}")
     return worst_status
 
 
@@ -166,7 +171,7 @@ def handle_no_checks(check_section: str | None) -> int:
     if check_section:
         LOGGER.error("check section not found or disabled: %s", check_section)
         return 2
-    LOGGER.info("no checks due")
+    LOGGER.debug("no checks due")
     return 0
 
 
@@ -363,7 +368,7 @@ def process_result(
     elif kuma_configured and not dry_run:
         kuma_action = "sent"
 
-    LOGGER.info(
+    LOGGER.debug(
         "check_result section=%s check=%s status=%s duration_ms=%d consecutive_failures=%d was_problem=%s "
         "is_problem=%s problem_code=%s notification=%s notification_reason=%s kuma=%s message=%r",
         check_config.section,

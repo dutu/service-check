@@ -56,6 +56,8 @@ class GlobalConfig:
     lock_file: str
     max_run_seconds: float
     max_lock_hold_minutes: float
+    log_level: str = "INFO"
+    show_results: bool = False
 
 
 @dataclass(frozen=True)

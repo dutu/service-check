@@ -38,7 +38,7 @@ class StateStore:
     def load(self) -> dict[str, Any]:
         path = Path(self.state_file)
         if not path.exists():
-            LOGGER.info("state_load path=%s exists=false", self.state_file)
+            LOGGER.debug("state_load path=%s exists=false", self.state_file)
             return _default_state()
         with path.open("r", encoding="utf-8") as handle:
             data = json.load(handle)
@@ -47,7 +47,7 @@ class StateStore:
             return _default_state()
         data[STATE_VERSION_KEY] = __version__
         data.setdefault("checks", {})
-        LOGGER.info("state_load path=%s checks=%d", self.state_file, len(data.get("checks", {})))
+        LOGGER.debug("state_load path=%s checks=%d", self.state_file, len(data.get("checks", {})))
         return data
 
     def save(self, state: dict[str, Any]) -> None:
@@ -58,7 +58,7 @@ class StateStore:
             json.dump(state, handle, indent=2, sort_keys=True)
             handle.write("\n")
         os.replace(tmp_path, self.state_file)
-        LOGGER.info("state_save path=%s checks=%d", self.state_file, len(state.get("checks", {})))
+        LOGGER.debug("state_save path=%s checks=%d", self.state_file, len(state.get("checks", {})))
 
 
 def _default_state() -> dict[str, Any]:

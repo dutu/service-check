@@ -294,6 +294,8 @@ state_file=/var/lib/service-check/state.json
 lock_file=/var/lib/service-check/state.lock
 max_run_seconds=50
 max_lock_hold_minutes=2
+log_level=INFO
+show_results=0
 
 [default]
 notify_cmd=/usr/local/bin/telegram-notify --level {notify_level} infra
@@ -336,6 +338,8 @@ kuma_push_url=https://kuma.example.com/api/push/electrs-token
 | `lock_file` | Lock file path. Defaults to `state_file` plus `.lock`. |
 | `max_run_seconds` | Maximum wall-clock budget for one runner invocation before starting another check. `0` disables the budget. |
 | `max_lock_hold_minutes` | Maximum time to wait for another process to release the state lock. `0` waits indefinitely. |
+| `log_level` | Runtime log level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`. CLI `--verbose` forces `DEBUG`. |
+| `show_results` | Print per-check result summaries to stdout during normal runs. Defaults to `0`; `--dry-run` and `--results-for` still show results. |
 
 ### Default Check Settings
 
@@ -496,18 +500,29 @@ systemd captures stdout and Python logs:
 sudo journalctl -u service-check.service -n 50 --no-pager
 ```
 
-Useful log markers:
+Default systemd runs are intentionally quiet when `[global] log_level=INFO` and
+`show_results=0`. Routine lifecycle, successful check results, state load/save,
+and selected-check logs are emitted at `DEBUG` and appear when setting
+`log_level=DEBUG` or running `service-check --verbose`. Default `INFO` output is
+reserved for semantic per-check transitions such as `OK -> CRIT`, `CRIT -> OK`,
+or problem-code changes. Set `show_results=1` only if you want per-check summary
+lines in `journalctl`.
+
+Useful verbose/debug log markers:
 
 - `run_start` / `run_end`: mode, enabled checks, state file, final status, exit code, duration
 - `config_loaded`: main config and drop-ins used
 - `checks_selected`: due or explicitly selected sections
 - `check_retry`: retry attempts
 - `check_result`: result, duration, notification decision, Kuma decision, rendered message
+- `state_load` / `state_save`: state path and tracked check count
+
+Useful default log marker:
+
 - `check_state_change`: semantic per-check transitions only: status, problem
   state, or problem code changes. Includes failure count, previous/current run
   time, seconds since the previous run, notification timestamps, and whether
   check-specific state changed.
-- `state_load` / `state_save`: state path and tracked check count
 
 The runner does not log full notification commands or Kuma push URLs because
 they may contain secrets.
