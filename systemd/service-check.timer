@@ -3,9 +3,10 @@ Description=Run service-check watchdog every minute
 
 [Timer]
 OnBootSec=1min
-OnUnitActiveSec=1min
+OnCalendar=*-*-* *:*:00
 AccuracySec=1s
-RandomizedDelaySec=0
+RandomizedDelaySec=30s
+FixedRandomDelay=yes
 Unit=service-check.service
 
 [Install]

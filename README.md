@@ -227,26 +227,8 @@ sudo service-check --doctor
 
 ### systemd Timer
 
-Installed timer:
-
-```ini
-[Unit]
-Description=Run service-check watchdog every minute
-
-[Timer]
-OnBootSec=1min
-OnUnitActiveSec=1min
-AccuracySec=1s
-RandomizedDelaySec=0
-Unit=service-check.service
-
-[Install]
-WantedBy=timers.target
-```
-
-`AccuracySec=1s` is intentional. systemd timers otherwise allow coalescing for
-power efficiency, which can delay a nominal one-minute timer enough for strict
-Kuma Push monitors to report missed heartbeats.
+The installer deploys `service-check.timer`. It runs `service-check` once per
+minute.
 
 Check timer status:
 
@@ -500,7 +482,7 @@ systemd captures stdout and Python logs:
 sudo journalctl -u service-check.service -n 50 --no-pager
 ```
 
-Default systemd runs are intentionally quiet when `[global] log_level=INFO` and
+Default systemd runs are intentionally quiet with `[global] log_level=INFO` and
 `show_results=0`. Routine lifecycle, successful check results, state load/save,
 and selected-check logs are emitted at `DEBUG` and appear when setting
 `log_level=DEBUG` or running `service-check --verbose`. Default `INFO` output is
@@ -532,7 +514,7 @@ they may contain secrets.
 | Symptom | Check |
 | --- | --- |
 | Timer does not run | `systemctl status service-check.timer service-check.service` |
-| Timer fires late | `systemctl cat service-check.timer` and confirm `AccuracySec=1s` |
+| Timer fires late | `systemctl list-timers --all --no-pager service-check.timer` and inspect recent journal timestamps |
 | Check never runs | Confirm `enabled=1`, correct `check=...`, and `--list-scheduled` output |
 | Config rejected | Run `service-check --validate-config` |
 | Notification not sent | Check `notify_cmd`, `fail_after`, `notify_repeat_after_minutes`, and `--no-notify` usage |

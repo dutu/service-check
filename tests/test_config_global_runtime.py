@@ -11,16 +11,7 @@ class GlobalRuntimeConfigTest(unittest.TestCase):
     def test_loads_global_runtime_settings(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "service-check.ini"
-            config_path.write_text(
-                "\n".join(
-                    [
-                        "[global]",
-                        "log_level=debug",
-                        "show_results=1",
-                    ]
-                ),
-                encoding="utf-8",
-            )
+            config_path.write_text("[global]\nlog_level=debug\nshow_results=1\n", encoding="utf-8")
 
             loaded = load_config(str(config_path))
 
