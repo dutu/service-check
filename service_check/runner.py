@@ -380,7 +380,7 @@ def process_result(
         _truncate(message),
     )
 
-    checks_state[check_config.section] = {
+    new_check_state = {
         "last_result": serialize_check_result(result),
         "last_problem": is_problem,
         "consecutive_failures": consecutive,
@@ -395,6 +395,8 @@ def process_result(
         ),
         "check_state": result.state,
     }
+    checks_state[check_config.section] = new_check_state
+    log_check_state_change(check_config, previous, new_check_state)
 
 
 def serialize_check_result(result: CheckResult) -> dict[str, Any]:
@@ -404,6 +406,83 @@ def serialize_check_result(result: CheckResult) -> dict[str, Any]:
         "message": result.message,
         "details": result.details,
     }
+
+
+def log_check_state_change(
+    check_config: CheckConfig,
+    previous: dict[str, Any],
+    current: dict[str, Any],
+) -> None:
+    previous_result = previous.get("last_result")
+    current_result = current.get("last_result")
+    previous_status = _state_result_status(previous_result)
+    current_status = _state_result_status(current_result)
+    previous_problem_code = _state_result_problem_code(previous_result)
+    current_problem_code = _state_result_problem_code(current_result)
+    changed_keys = _changed_state_keys(previous, current)
+    previous_run_at = previous.get("last_run_at")
+    current_run_at = current.get("last_run_at")
+
+    LOGGER.info(
+        "check_state_change section=%s check=%s changed=%s status=%s->%s problem=%s->%s "
+        "problem_code=%s->%s consecutive_failures=%s->%s last_run_at=%s->%s "
+        "previous_run_at=%s current_run_at=%s seconds_since_previous_run=%s "
+        "last_notification_at=%s->%s last_success_notification_at=%s->%s check_state_changed=%s",
+        check_config.section,
+        check_config.check,
+        ",".join(changed_keys) if changed_keys else "-",
+        previous_status or "-",
+        current_status or "-",
+        previous.get("last_problem", "-"),
+        current.get("last_problem", "-"),
+        previous_problem_code or "-",
+        current_problem_code or "-",
+        previous.get("consecutive_failures", "-"),
+        current.get("consecutive_failures", "-"),
+        previous_run_at or "-",
+        current_run_at or "-",
+        previous_run_at or "-",
+        current_run_at or "-",
+        _seconds_between_iso(previous_run_at, current_run_at),
+        previous.get("last_notification_at", "-"),
+        current.get("last_notification_at", "-"),
+        previous.get("last_success_notification_at", "-"),
+        current.get("last_success_notification_at", "-"),
+        previous.get("check_state") != current.get("check_state"),
+    )
+
+
+def _changed_state_keys(previous: dict[str, Any], current: dict[str, Any]) -> list[str]:
+    keys = sorted(set(previous) | set(current))
+    return [key for key in keys if previous.get(key) != current.get(key)]
+
+
+def _state_result_status(value: Any) -> str | None:
+    if not isinstance(value, dict):
+        return None
+    status = value.get("status")
+    return status if isinstance(status, str) else None
+
+
+def _state_result_problem_code(value: Any) -> str | None:
+    if not isinstance(value, dict):
+        return None
+    details = value.get("details")
+    if not isinstance(details, dict):
+        return None
+    problem_code = details.get("problem_code")
+    return problem_code if isinstance(problem_code, str) and problem_code else None
+
+
+def _seconds_between_iso(previous_iso: Any, current_iso: Any) -> str:
+    if not isinstance(previous_iso, str) or not isinstance(current_iso, str):
+        return "-"
+    try:
+        previous = datetime.fromisoformat(previous_iso.replace("Z", "+00:00"))
+        current = datetime.fromisoformat(current_iso.replace("Z", "+00:00"))
+    except ValueError:
+        return "-"
+    return str(int((current - previous).total_seconds()))
 
 
 def _accepts_check_state(check_fn: Callable[..., CheckResult]) -> bool:

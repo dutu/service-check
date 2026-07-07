@@ -496,13 +496,17 @@ systemd captures stdout and Python logs:
 sudo journalctl -u service-check.service -n 50 --no-pager
 ```
 
-Useful log mar  kers:
+Useful log markers:
 
 - `run_start` / `run_end`: mode, enabled checks, state file, final status, exit code, duration
 - `config_loaded`: main config and drop-ins used
 - `checks_selected`: due or explicitly selected sections
 - `check_retry`: retry attempts
 - `check_result`: result, duration, notification decision, Kuma decision, rendered message
+- `check_state_change`: per-check persisted state changes, including status,
+  problem state, problem code, failure count, run timestamp, notification
+  timestamps, previous/current run time, seconds since the previous run, and
+  whether check-specific state changed
 - `state_load` / `state_save`: state path and tracked check count
 
 The runner does not log full notification commands or Kuma push URLs because
