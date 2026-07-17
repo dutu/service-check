@@ -136,6 +136,11 @@ Run installation/runtime diagnostics:
 sudo service-check --doctor
 ```
 
+`--doctor` validates option names in the main config and every active `.ini`
+drop-in, including disabled check sections. Unknown options are reported as
+`ERROR` entries with a suggested replacement when a close match exists. This
+helps catch renamed or removed options after upgrading `service-check`.
+
 Useful CLI options:
 
 | Option | Purpose |
@@ -149,7 +154,7 @@ Useful CLI options:
 | `--validate-config` | Validate section names, check modules, required keys, value types, and unknown keys. |
 | `--print-config` | Print the effective enabled config. |
 | `--describe-check CHECK\|all` | Show check-specific fields and statuses. |
-| `--doctor` | Check installation, config, state paths, check imports, notification command, Kuma URLs, and systemd status. |
+| `--doctor` | Check installation, config option names and values, state paths, check imports, notification command, Kuma URLs, and systemd status. |
 | `--dry-run` | Skip notifications, Kuma pushes, and state writes. |
 | `--no-notify` | Skip local notification command execution. |
 | `--verbose` | Enable debug logging. |
@@ -575,6 +580,10 @@ for file in service_check/checks/*/*.example.ini; do sudo cp -n "$file" "/etc/se
 Then validate:
 
 ```bash
-sudo service-check --validate-config
+sudo service-check --doctor
 sudo service-check --all --dry-run
 ```
+
+Run `--doctor` after each production upgrade. It checks the active main config
+and `.ini` drop-ins against the option names supported by the newly installed
+version; any `ERROR` result should be corrected before restarting normal checks.
