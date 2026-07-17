@@ -5,6 +5,8 @@ import re
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from packaging.version import InvalidVersion, Version
+
 from service_check import __version__
 from service_check.models import OK, UNKNOWN, WARN, CheckConfig, CheckResult
 
@@ -152,21 +154,18 @@ def _format_version_tag(version: str) -> str:
 
 
 def _compare_versions(left: str, right: str) -> int:
-    left_parts = _parse_numeric_version(left)
-    right_parts = _parse_numeric_version(right)
-    max_length = max(len(left_parts), len(right_parts))
-    padded_left = left_parts + [0] * (max_length - len(left_parts))
-    padded_right = right_parts + [0] * (max_length - len(right_parts))
-    if padded_left < padded_right:
+    left_version = _parse_version(left)
+    right_version = _parse_version(right)
+    if left_version < right_version:
         return -1
-    if padded_left > padded_right:
+    if left_version > right_version:
         return 1
     return 0
 
 
-def _parse_numeric_version(version: str) -> list[int]:
+def _parse_version(version: str) -> Version:
     normalized = _normalize_version(version)
-    match = re.fullmatch(r"\d+(?:\.\d+)*", normalized)
-    if not match:
-        raise ValueError(f"expected numeric dotted version, got {version!r}")
-    return [int(part) for part in normalized.split(".")]
+    try:
+        return Version(normalized)
+    except InvalidVersion as exc:
+        raise ValueError(f"expected PEP 440 version, got {version!r}") from exc

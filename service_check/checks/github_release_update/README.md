@@ -37,7 +37,9 @@ If `expected_version` is not set, the check calls:
 https://api.github.com/repos/{repository}/releases/latest
 ```
 
-and compares the installed package version with the response `tag_name`.
+and compares the installed package version with the response `tag_name` using
+PEP 440 version ordering. Final, development, alpha, beta, and release candidate
+versions are supported, with or without a leading `v`.
 
 The check returns `OK` when the installed version is equal to or newer than the
 latest GitHub Release. A newer local version can happen while running unreleased
@@ -64,7 +66,7 @@ The check returns these `details` keys for message templates:
 - `version_newer`: installed version is newer than the expected or latest version
 - `invalid_config`: GitHub repository config is invalid
 - `fetch_failed`: latest release could not be fetched
-- `invalid_version`: current or latest version is not a dotted numeric version
+- `invalid_version`: current or latest version is not a valid PEP 440 version
 
 ## Example
 

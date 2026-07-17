@@ -1,5 +1,12 @@
 # Release Notes
 
+## service-check 0.6.0 (in development)
+
+### Changed
+
+- Adopted the PEP 440 development version `0.6.0.dev0` until the final `0.6.0` release.
+- Updated `github_release_update` to compare development, alpha, beta, release candidate, and final versions using PEP 440 ordering.
+
 ## service-check 0.5.0
 
 ### Changed
