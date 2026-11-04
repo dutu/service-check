@@ -1,11 +1,12 @@
 # Release Notes
 
-## service-check 0.6.0 (in development)
+## service-check 0.6.0
 
 ### Changed
 
-- Adopted the PEP 440 development version `0.6.0.dev0` until the final `0.6.0` release.
+- Completed watchdog runs now return exit code `0` regardless of check health; configuration and runner failures still return `2`. Health results, alerts, and Kuma status remain independent of process success.
 - Updated `github_release_update` to compare development, alpha, beta, release candidate, and final versions using PEP 440 ordering.
+- Released stable version `0.6.0`.
 
 ## service-check 0.5.0
 

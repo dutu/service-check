@@ -479,8 +479,9 @@ for cases where `WARN` is the desired alert status, such as
 
 ## Aggregation
 
-Per-check results are aggregated for process exit code and optional aggregate
-reporting.
+Per-check results are aggregated for health reporting independently of the
+process exit code. The worst status is included in the debug `run_end` log;
+individual results remain available in result output and persistent state.
 
 Aggregate rules:
 
@@ -493,9 +494,14 @@ Process exit codes:
 
 | Exit Code | Meaning |
 | --- | --- |
-| `0` | All checks healthy or only warnings, depending on policy. |
-| `1` | At least one check is `CRIT` or `UNKNOWN`. |
-| `2` | Configuration error or runner error. |
+| `0` | Runner completed successfully, regardless of check health (`OK`, `WARN`, `CRIT`, or `UNKNOWN`). |
+| `2` | Configuration error or runner error, including state management failures and unexpected runner exceptions. |
+
+These semantics also apply to `--results-for` and `--dry-run`. A check exception
+is isolated as an `UNKNOWN` result; it does not itself constitute a runner
+failure. Notifications, retries, failure thresholds, recovery detection, repeat
+suppression, and Kuma health mapping are independent of the process exit code.
+A completed systemd oneshot execution succeeds even when checks detect problems.
 
 ## Uptime Kuma Mapping
 

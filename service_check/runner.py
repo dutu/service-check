@@ -14,6 +14,7 @@ from service_check.state import StateStore
 from service_check.templates import render_template
 
 LOGGER = logging.getLogger(__name__)
+STATUS_SEVERITY = {OK: 0, WARN: 1, UNKNOWN: 2, CRIT: 3}
 
 
 def run(
@@ -87,14 +88,13 @@ def run(
                 show_results=show_results,
             )
 
-    exit_code = 1 if worst_status in {CRIT, UNKNOWN} else 0
     LOGGER.debug(
         "run_end worst_status=%s exit_code=%d duration_ms=%d",
         worst_status,
-        exit_code,
+        0,
         _elapsed_ms(started),
     )
-    return exit_code
+    return 0
 
 
 def process_selected_checks(
@@ -128,7 +128,7 @@ def process_selected_checks(
             check_state if isinstance(check_state, dict) else {},
         )
         duration_ms = _elapsed_ms(started)
-        if result.status in {CRIT, UNKNOWN}:
+        if STATUS_SEVERITY[result.status] > STATUS_SEVERITY[worst_status]:
             worst_status = result.status
         process_result(
             global_config=global_config,
