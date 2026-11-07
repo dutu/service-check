@@ -1,6 +1,12 @@
 # Release Notes
 
-## service-check 0.6.0
+## v0.6.1
+
+### Changed
+
+- Simplified configuration organization and removed redundant examples.
+
+## v0.6.0
 
 ### Changed
 
@@ -8,20 +14,20 @@
 - Updated `github_release_update` to compare development, alpha, beta, release candidate, and final versions using PEP 440 ordering.
 - Released stable version `0.6.0`.
 
-## service-check 0.5.0
+## v0.5.0
 
 ### Changed
 
 - Consolidated the main example config by making `examples/service-check.ini` production-safe and using it as the installer source.
 
-## service-check 0.4.0
+## v0.4.0
 
 ### Added
 
 - Added a generic `ping` check for ICMP reachability monitoring.
 
 
-## service-check 0.3.1
+## v0.3.1
 
 ### Fixed
 
@@ -37,7 +43,7 @@
 
 - This release removes the need to manually keep `service_check/__init__.py` in sync with `pyproject.toml`.
 
-## service-check 0.3.0
+## v0.3.0
 
 ### Added
 
@@ -64,7 +70,7 @@
 
 **Full Changelog**: https://github.com/dutu/service-check/compare/v0.2.0...v0.3.0
 
-## service-check 0.2.0
+## v0.2.0
 
 ### Added
 
@@ -94,6 +100,6 @@
 - Move old `default_*` options from `[global]` into `[default]`.
 - Use minutes for `interval_minutes` and `notify_repeat_after_minutes`; use seconds for `timeout_seconds` and `retry_delay_seconds`.
 
-## service-check 0.1.0
+## v0.1.0
 
 First release.

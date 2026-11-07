@@ -85,11 +85,13 @@ install_runtime_files() {
 
   log "Installing default config without overwriting existing files"
   if [[ ! -f "${CONFIG_DIR}/service-check.ini" ]]; then
-    install -m 0644 "${SRC_DIR}/examples/service-check.ini" "${CONFIG_DIR}/service-check.ini"
+    install -m 0644 "${SRC_DIR}/config/service-check.ini" "${CONFIG_DIR}/service-check.ini"
   else
     repair_known_bad_config_defaults "${CONFIG_DIR}/service-check.ini"
   fi
-  cp -n "${SRC_DIR}/examples/service-check.ini.d/10-version.ini" "${DROPIN_DIR}/10-version.ini"
+  if [[ ! -e "${DROPIN_DIR}/10-version.ini" ]]; then
+    cp -n "${SRC_DIR}/config/service-check.ini.d/10-github-release-update.ini" "${DROPIN_DIR}/10-github-release-update.ini"
+  fi
   install_check_examples
   disable_known_old_tcp_dropin
 

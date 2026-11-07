@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AgentCommitMessageProject"><![CDATA[{
+  "mode": "CUSTOM",
+  "instruction": "Generate meaningful, concise commit messages using Conventional Commits.\n\nFormat:\n<type>: <short imperative summary>\n\nUse one of these types:\nfeat, fix, docs, refactor, test, chore, build, ci\n\nRules:\n- Keep the subject under 72 characters when practical.\n- Use imperative mood, e.g. \"document safe update flow\".\n- Mention the actual user-visible or maintenance impact.\n- Avoid vague summaries like \"update files\", \"changes\", or \"fix stuff\".\n- Avoid overly verbose descriptions or unnecessary details.\n- Add a short body only when the reason, migration impact, or config/systemd impact is not obvious.\n- If config, install, update, or systemd behavior changes, mention that explicitly."
+}]]></component>
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
   </component>

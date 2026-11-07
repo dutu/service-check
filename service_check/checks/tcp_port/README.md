@@ -46,6 +46,9 @@ The check returns these `details` keys for message templates:
 
 ## Example
 
+The installer copies [20-tcp-port.example.ini](20-tcp-port.example.ini) as the
+inactive drop-in `20-tcp-port.ini.skip`.
+
 ```ini
 [electrs_tcp]
 enabled=1

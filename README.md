@@ -32,7 +32,7 @@ Detailed design and extension notes live in [ARCHITECTURE.md](ARCHITECTURE.md).
   - [Secrets](#secrets)
 - [Update](#update)
   - [Update Flow](#update-flow)
-  - [Review Config Example Changes](#review-config-example-changes)
+  - [Review Default Config and Example Changes](#review-default-config-and-example-changes)
 
 ## Overview
 
@@ -180,7 +180,8 @@ The installer:
 - installs the Python package into the virtual environment
 - links `/usr/local/bin/service-check`
 - creates `/etc/service-check`, `/etc/service-check/service-check.ini.d`, and `/var/lib/service-check`
-- copies the reference config without overwriting existing config
+- copies the default config from `config/` without overwriting existing config
+- installs `10-github-release-update.ini` as the active default check, unless the legacy `10-version.ini` already exists
 - installs check examples as inactive `.ini.skip` drop-ins
 - installs and reloads systemd units
 - enables and restarts `service-check.timer`
@@ -220,7 +221,10 @@ sudo python3 -m venv /opt/service-check-venv
 sudo /opt/service-check-venv/bin/python -m pip install .
 sudo ln -sfn /opt/service-check-venv/bin/service-check /usr/local/bin/service-check
 sudo mkdir -p /etc/service-check/service-check.ini.d /var/lib/service-check
-sudo cp -n examples/service-check.ini /etc/service-check/service-check.ini
+sudo cp -n config/service-check.ini /etc/service-check/service-check.ini
+if [ ! -e /etc/service-check/service-check.ini.d/10-version.ini ]; then
+  sudo cp -n config/service-check.ini.d/10-github-release-update.ini /etc/service-check/service-check.ini.d/10-github-release-update.ini
+fi
 for file in service_check/checks/*/*.example.ini; do sudo cp -n "$file" "/etc/service-check/service-check.ini.d/$(basename "$file" .example.ini).ini.skip"; done
 sudo cp systemd/service-check.service /etc/systemd/system/service-check.service
 sudo cp systemd/service-check.timer /etc/systemd/system/service-check.timer
@@ -562,13 +566,13 @@ The update flow:
 - reloads systemd and restarts `service-check.timer`
 - leaves `/etc/service-check` configuration untouched
 
-### Review Config Example Changes
+### Review Default Config and Example Changes
 
-The installer does not overwrite active config. Review example changes manually:
+The installer does not overwrite active config. Review default config and example changes manually:
 
 ```bash
 cd /opt/service-check-src
-git diff HEAD@{1} -- examples/ service_check/checks/ systemd/
+git diff HEAD@{1} -- config/ service_check/checks/ systemd/
 ```
 
 Copy new examples only when needed:
