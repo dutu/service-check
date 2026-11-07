@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import re
 import socket
 import subprocess
@@ -8,15 +7,9 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import (
-    HTTPBasicAuthHandler,
-    HTTPDigestAuthHandler,
-    HTTPPasswordMgrWithDefaultRealm,
-    Request,
-    build_opener,
-    urlopen,
-)
+
+import requests
+from requests.auth import HTTPDigestAuth
 
 from service_check.models import CRIT, OK, UNKNOWN, WARN, CheckConfig, CheckResult
 
@@ -273,31 +266,30 @@ def _check_tcp_port(host: str, port: int, timeout: float) -> str:
 
 def _fetch_get_info(host: str, port: int, rpc_login: str | None, timeout: float) -> _RpcResult:
     url = f"http://{_format_url_host(host)}:{port}/json_rpc"
-    body = json.dumps({"jsonrpc": "2.0", "id": "0", "method": "get_info"}).encode("utf-8")
     headers = {"Content-Type": "application/json", "User-Agent": "service-check"}
-    request = Request(url, data=body, headers=headers, method="POST")
+    auth = None
+    if rpc_login:
+        username, separator, password = rpc_login.partition(":")
+        if separator:
+            auth = HTTPDigestAuth(username, password)
     try:
-        opener = _auth_opener(url, rpc_login)
-        response_context = opener.open(request, timeout=timeout) if opener else urlopen(request, timeout=timeout)
-        with response_context as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (HTTPError, URLError, OSError, json.JSONDecodeError) as exc:
+        # Monero's Digest nonce belongs to the connection that issued the 401.
+        with requests.Session() as session:
+            with session.post(
+                url,
+                json={"jsonrpc": "2.0", "id": "0", "method": "get_info"},
+                headers=headers,
+                auth=auth,
+                timeout=timeout,
+            ) as response:
+                response.raise_for_status()
+                payload = response.json()
+    except (requests.RequestException, OSError) as exc:
         return _RpcResult(error=str(exc))
-    result = payload.get("result")
+    result = payload.get("result") if isinstance(payload, dict) else None
     if not isinstance(result, dict):
         return _RpcResult(error="RPC response did not include result object")
     return _RpcResult(payload=result)
-
-
-def _auth_opener(url: str, rpc_login: str | None) -> Any | None:
-    if not rpc_login:
-        return None
-    username, separator, password = rpc_login.partition(":")
-    if not separator:
-        return None
-    password_manager = HTTPPasswordMgrWithDefaultRealm()
-    password_manager.add_password(None, url, username, password)
-    return build_opener(HTTPDigestAuthHandler(password_manager), HTTPBasicAuthHandler(password_manager))
 
 
 def _evaluate_sync(

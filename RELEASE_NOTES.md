@@ -2,6 +2,10 @@
 
 ## v0.6.1
 
+### Fixed
+
+- Fixed `monerod` RPC Digest authentication failures by reusing the HTTP connection with Requests
+
 ### Changed
 
 - Simplified configuration organization and removed redundant examples.

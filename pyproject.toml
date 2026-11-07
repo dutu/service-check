@@ -1,9 +1,9 @@
 [project]
 name = "service-check"
-version = "0.6.1"
+version = "0.6.2"
 description = "Small local watchdog runner for self-hosted services."
 requires-python = ">=3.11"
-dependencies = ["packaging>=23.0"]
+dependencies = ["packaging>=23.0", "requests>=2.32.5"]
 
 [project.scripts]
 service-check = "service_check.cli:main"

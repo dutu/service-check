@@ -42,7 +42,7 @@ The check reads these monerod config keys when present:
 - `p2p-bind-ip`
 - `p2p-bind-port`
 
-`rpc-login=user:password` is used as HTTP Basic auth for unrestricted RPC.
+`rpc-login=user:password` is used as HTTP Digest authentication for unrestricted RPC.
 
 ## Statuses
 
